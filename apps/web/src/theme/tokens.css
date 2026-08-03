@@ -1,0 +1,106 @@
+/**
+ * Ported verbatim from docs/phase-4-ui-wireframes/wireframes.html (the
+ * approved Phase 4 deliverable) — same variable names, same values.
+ * `prefers-color-scheme` is the default signal; `[data-theme]` on the
+ * root element (stamped by the theme toggle) overrides it in both
+ * directions.
+ */
+:root {
+  --ink: #1a2230;
+  --paper: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #fbfbfc;
+  --line: #dee2e8;
+  --line-strong: #c7ccd4;
+  --muted: #647085;
+  --muted-2: #8891a0;
+  --accent: #1f5fa8;
+  --accent-ink: #0f3d73;
+  --accent-soft: #e7effa;
+  --accent-soft-line: #c7dbf2;
+  --success: #1f7a46;
+  --success-soft: #e4f5eb;
+  --warning: #a6660f;
+  --warning-soft: #faedd9;
+  --critical: #b33636;
+  --critical-soft: #fbe7e7;
+  --shadow:
+    0 1px 2px rgba(20, 28, 44, 0.06),
+    0 1px 1px rgba(20, 28, 44, 0.04);
+  --radius: 8px;
+  --sidebar-w: 232px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e7ebf1;
+    --paper: #0f131a;
+    --surface: #171c25;
+    --surface-2: #1c222d;
+    --line: #2a3140;
+    --line-strong: #384057;
+    --muted: #8a93a3;
+    --muted-2: #6d7684;
+    --accent: #6096e3;
+    --accent-ink: #bfd6f7;
+    --accent-soft: #1b2c46;
+    --accent-soft-line: #2c4266;
+    --success: #49b57c;
+    --success-soft: #163527;
+    --warning: #e0a550;
+    --warning-soft: #3b2c15;
+    --critical: #e27272;
+    --critical-soft: #3a1e1e;
+    --shadow:
+      0 1px 2px rgba(0, 0, 0, 0.35),
+      0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+}
+
+:root[data-theme='dark'] {
+  --ink: #e7ebf1;
+  --paper: #0f131a;
+  --surface: #171c25;
+  --surface-2: #1c222d;
+  --line: #2a3140;
+  --line-strong: #384057;
+  --muted: #8a93a3;
+  --muted-2: #6d7684;
+  --accent: #6096e3;
+  --accent-ink: #bfd6f7;
+  --accent-soft: #1b2c46;
+  --accent-soft-line: #2c4266;
+  --success: #49b57c;
+  --success-soft: #163527;
+  --warning: #e0a550;
+  --warning-soft: #3b2c15;
+  --critical: #e27272;
+  --critical-soft: #3a1e1e;
+  --shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+:root[data-theme='light'] {
+  --ink: #1a2230;
+  --paper: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #fbfbfc;
+  --line: #dee2e8;
+  --line-strong: #c7ccd4;
+  --muted: #647085;
+  --muted-2: #8891a0;
+  --accent: #1f5fa8;
+  --accent-ink: #0f3d73;
+  --accent-soft: #e7effa;
+  --accent-soft-line: #c7dbf2;
+  --success: #1f7a46;
+  --success-soft: #e4f5eb;
+  --warning: #a6660f;
+  --warning-soft: #faedd9;
+  --critical: #b33636;
+  --critical-soft: #fbe7e7;
+  --shadow:
+    0 1px 2px rgba(20, 28, 44, 0.06),
+    0 1px 1px rgba(20, 28, 44, 0.04);
+}

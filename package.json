@@ -1,0 +1,21 @@
+{
+  "name": "antech-erp",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Antech ERP — cloud-based ERP platform for engineering contractors",
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "docker compose -f infra/docker/docker-compose.yml up",
+    "dev:api": "pnpm --filter ./apps/api dev",
+    "dev:web": "pnpm --filter ./apps/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "migrate": "bash db/migrations/apply.sh"
+  }
+}

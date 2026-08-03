@@ -1,0 +1,99 @@
+# V1 single-VPS production profile — see docs/phase-3-system-architecture/deployment.md
+# Caddy handles TLS termination and reverse-proxies to api/web.
+# All secrets come from .env on the host (not committed) — see .env.example.
+
+name: antech-erp-prod
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    env_file: [.env]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+
+  minio:
+    image: minio/minio:latest
+    restart: always
+    command: server /data --console-address ":9001"
+    env_file: [.env]
+    volumes:
+      - minio_data:/data
+
+  api:
+    image: ${REGISTRY:-ghcr.io/antech}/antech-api:${IMAGE_TAG:-latest}
+    restart: always
+    env_file: [.env]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    image: ${REGISTRY:-ghcr.io/antech}/antech-api:${IMAGE_TAG:-latest}
+    command: ["node", "dist/worker.js"]
+    restart: always
+    env_file: [.env]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  web:
+    image: ${REGISTRY:-ghcr.io/antech}/antech-web:${IMAGE_TAG:-latest}
+    restart: always
+
+  backup:
+    image: postgres:15-alpine
+    restart: always
+    env_file: [.env]
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "while true; do
+        pg_dump -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -F c -f /backups/antech_$$(date +%Y%m%d_%H%M%S).dump;
+        find /backups -name '*.dump' -mtime +30 -delete;
+        sleep 86400;
+      done"
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  caddy_data:
+  caddy_config:

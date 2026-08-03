@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/coverage
+.git
+.claude
+docs
+db
+*.md
+.env
+.env.*
+!.env.example

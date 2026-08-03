@@ -1,0 +1,95 @@
+# Local development stack (an alternative to the .claude/launch.json +
+# run-dev.cmd path this project's own dev sessions have actually used —
+# see apps/api/README.md/apps/web/README.md's "Running" sections).
+# `api`/`web` build from the repo root — see apps/api/Dockerfile's header
+# for why the context can't be apps/api itself in a pnpm workspace.
+
+name: antech-erp-dev
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: antech
+      POSTGRES_PASSWORD: antech_dev_password
+      POSTGRES_DB: antech_erp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../db/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U antech -d antech_erp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: antech
+      MINIO_ROOT_PASSWORD: antech_dev_password
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # console
+    volumes:
+      - minio_data:/data
+
+  api:
+    build:
+      # Context is the repo root, not apps/api — pnpm workspace lockfile
+      # only exists at the root. See apps/api/Dockerfile's own header.
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: development
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      DATABASE_URL: postgresql://antech:antech_dev_password@postgres:5432/antech_erp
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../..:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      target: development
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:3000/api/v1
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../..:/app
+      - /app/node_modules
+      - /app/apps/web/node_modules
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

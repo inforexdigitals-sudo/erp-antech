@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+apps/web/dist/
+apps/api/dist/
+
+# Prisma
+apps/api/prisma/generated/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local infra data
+infra/docker/backups/
+infra/backups/
+
+# Machine-specific dev launchers (hardcoded absolute paths — not portable;
+# see apps/api/README.md and apps/web/README.md "Verified" for why these
+# exist instead of just `pnpm dev`)
+run-dev.cmd
+.claude/

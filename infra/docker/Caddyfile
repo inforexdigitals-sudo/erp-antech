@@ -1,0 +1,18 @@
+# Replace with your real domain before deploying.
+# Caddy handles Let's Encrypt TLS automatically for any domain pointed at this host.
+
+your-domain.example.com {
+    handle /api/* {
+        reverse_proxy api:3000
+    }
+
+    handle {
+        reverse_proxy web:80
+    }
+
+    encode gzip zstd
+    log {
+        output stdout
+        format json
+    }
+}

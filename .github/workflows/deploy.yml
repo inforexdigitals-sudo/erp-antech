@@ -1,0 +1,54 @@
+name: Deploy
+
+# Runs on merge to main, after CI has already passed on that commit.
+# Steps 2-3 are stubbed (TODO) pending the target registry/host decision
+# — see docs/phase-3-system-architecture/deployment.md, section 3.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # TODO(Phase 9): confirm registry (GHCR default assumed here) and log in
+      - name: Log in to registry
+        run: |
+          echo "TODO: docker login $REGISTRY -u $GITHUB_ACTOR -p $GITHUB_TOKEN"
+
+      - name: Build and push api image
+        run: |
+          echo "TODO: docker build -t $REGISTRY/antech-api:${{ github.sha }} apps/api"
+          echo "TODO: docker push $REGISTRY/antech-api:${{ github.sha }}"
+
+      - name: Build and push web image
+        run: |
+          echo "TODO: docker build -t $REGISTRY/antech-web:${{ github.sha }} apps/web --build-arg VITE_API_BASE_URL=$VITE_API_BASE_URL"
+          echo "TODO: docker push $REGISTRY/antech-web:${{ github.sha }}"
+
+  migrate-and-deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # TODO(Phase 9): run db/migrations/apply.sh against the target DATABASE_URL (staging/production secret)
+      - name: Apply pending migrations
+        run: |
+          echo "TODO: DATABASE_URL=$PROD_DATABASE_URL bash db/migrations/apply.sh"
+
+      # TODO(Phase 9): pick one once the hosting profile (docs/phase-3-system-architecture/deployment.md) is chosen:
+      #   V1 (single VPS):        ssh deploy@host "cd /opt/antech-erp && docker compose -f infra/docker-compose.prod.yml pull && docker compose -f infra/docker-compose.prod.yml up -d"
+      #   Growth path (ECS/K8s):  update task definition / rollout with the new image tag
+      - name: Deploy
+        run: |
+          echo "TODO: deploy via chosen profile"
+
+      - name: Smoke test
+        run: |
+          echo "TODO: curl --fail https://$PROD_HOST/api/v1/health"
