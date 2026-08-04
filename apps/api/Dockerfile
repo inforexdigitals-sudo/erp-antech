@@ -43,21 +43,20 @@ COPY apps/api ./apps/api
 RUN pnpm --filter ./apps/api prisma:generate
 RUN pnpm --filter ./apps/api build
 
-# ---- production dependencies only --------------------------------------
-FROM base AS prod-deps
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/api/package.json ./apps/api/package.json
-COPY apps/api/prisma ./apps/api/prisma
-RUN pnpm install --frozen-lockfile --prod
-RUN pnpm --filter ./apps/api prisma:generate
-
 # ---- production runtime -------------------------------------------------
+# node_modules comes straight from `build`, not a separate --prod-only
+# install: a --prod install skips devDependencies, and the `prisma` CLI
+# (needed to run `prisma generate`) lives there — so a prod-only stage
+# can never regenerate the client itself, and would otherwise ship
+# whatever stub `@prisma/client`'s postinstall produced (see `deps`
+# stage's comment). Reusing `build`'s already-verified-correct
+# node_modules trades a larger image for actually being correct.
 FROM node:20-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup -S antech && adduser -S antech -G antech
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 WORKDIR /app/apps/api
