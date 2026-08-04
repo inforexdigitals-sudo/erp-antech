@@ -8,8 +8,21 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
+process.on('unhandledRejection', (reason) => {
+  // eslint-disable-next-line no-console
+  console.error('UNHANDLED REJECTION', reason);
+});
+process.on('uncaughtException', (err) => {
+  // eslint-disable-next-line no-console
+  console.error('UNCAUGHT EXCEPTION', err);
+});
+
 async function bootstrap(): Promise<void> {
+  // eslint-disable-next-line no-console
+  console.log('bootstrap() starting...');
   const app = await NestFactory.create(AppModule);
+  // eslint-disable-next-line no-console
+  console.log('NestFactory.create() resolved.');
   const config = app.get(ConfigService);
 
   app.use(helmet());
@@ -43,7 +56,9 @@ async function bootstrap(): Promise<void> {
   }
 
   const port = config.get<number>('port') ?? 3000;
-  await app.listen(port);
+  // eslint-disable-next-line no-console
+  console.log(`Calling app.listen(${port}) — process.env.PORT=${process.env.PORT}, API_PORT=${process.env.API_PORT}`);
+  await app.listen(port, '0.0.0.0');
   // eslint-disable-next-line no-console
   console.log(`Antech ERP API listening on :${port} (prefix /api/v1)`);
 }
