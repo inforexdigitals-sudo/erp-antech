@@ -14,7 +14,9 @@ export interface AppConfig {
 
 export default (): AppConfig => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
-  port: parseInt(process.env.API_PORT ?? '3000', 10),
+  // Railway (and most PaaS hosts) injects PORT and expects the process to
+  // bind to it; local dev uses API_PORT instead since PORT isn't set.
+  port: parseInt(process.env.PORT ?? process.env.API_PORT ?? '3000', 10),
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
   databaseUrl: requireEnv('DATABASE_URL'),
   jwt: {
