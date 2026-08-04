@@ -19,9 +19,15 @@ WORKDIR /app
 RUN corepack enable
 
 # ---- dependencies (whole workspace, so pnpm can resolve the lockfile) ----
+# apps/api/prisma is copied in before `pnpm install` (not just package.json)
+# because @prisma/client's postinstall hook auto-runs `prisma generate` as
+# part of install — without schema.prisma present yet, that silently
+# produces a stub client with almost no exported types, which every later
+# stage then inherits since they all build FROM deps.
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json ./apps/api/package.json
+COPY apps/api/prisma ./apps/api/prisma
 RUN pnpm install --frozen-lockfile
 
 # ---- development (used by infra/docker/docker-compose.yml, with a bind mount) ----
@@ -41,7 +47,9 @@ RUN pnpm --filter ./apps/api build
 FROM base AS prod-deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json ./apps/api/package.json
+COPY apps/api/prisma ./apps/api/prisma
 RUN pnpm install --frozen-lockfile --prod
+RUN pnpm --filter ./apps/api prisma:generate
 
 # ---- production runtime -------------------------------------------------
 FROM node:20-alpine AS production
