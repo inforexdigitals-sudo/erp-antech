@@ -14,8 +14,14 @@
 # correctly after being COPYed between stages.
 
 # ---- base ----------------------------------------------------------
+# openssl is not in the base alpine image, but Prisma's query engine
+# binary is linked against libssl — without it, PrismaClient.$connect()
+# fails at runtime with "Prisma failed to detect the libssl/openssl
+# version to use" (silently defaults to a possibly-wrong engine variant,
+# then throws), crashing bootstrap before the app ever calls listen().
 FROM node:20-alpine AS base
 WORKDIR /app
+RUN apk add --no-cache openssl
 RUN corepack enable
 
 # ---- dependencies (whole workspace, so pnpm can resolve the lockfile) ----
@@ -54,6 +60,7 @@ RUN pnpm --filter ./apps/api build
 FROM node:20-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache openssl
 RUN addgroup -S antech && adduser -S antech -G antech
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
