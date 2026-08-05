@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreateQuotationInput, CreateRevisionInput, QueryQuotations, quotationsApi } from './api';
+import { CreateQuotationInput, CreateRevisionInput, QueryQuotations, quotationsApi, UpdateQuotationHeaderInput } from './api';
 
 export function useQuotations(query: QueryQuotations) {
   return useQuery({ queryKey: ['quotations', query], queryFn: () => quotationsApi.list(query) });
@@ -29,6 +29,7 @@ export function useQuotationActions(id: string) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ['quotations'] });
   return {
+    updateHeader: useMutation({ mutationFn: (input: UpdateQuotationHeaderInput) => quotationsApi.updateHeader(id, input), onSuccess: invalidate }),
     submitForApproval: useMutation({ mutationFn: () => quotationsApi.submitForApproval(id), onSuccess: invalidate }),
     approve: useMutation({ mutationFn: (comments?: string) => quotationsApi.approve(id, comments), onSuccess: invalidate }),
     reject: useMutation({ mutationFn: (comments?: string) => quotationsApi.reject(id, comments), onSuccess: invalidate }),

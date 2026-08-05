@@ -77,6 +77,12 @@ export interface CreateRevisionInput {
   items: QuotationItemInput[];
 }
 
+export interface UpdateQuotationHeaderInput {
+  title?: string;
+  customerId?: string;
+  validUntil?: string;
+}
+
 export interface QueryQuotations {
   page?: number;
   pageSize?: number;
@@ -88,6 +94,7 @@ export const quotationsApi = {
   list: (query: QueryQuotations) => api.get<PaginatedResult<Quotation>>(`/quotations${toQueryString(query)}`),
   get: (id: string) => api.get<Quotation>(`/quotations/${id}`),
   create: (input: CreateQuotationInput) => api.post<Quotation>('/quotations', input),
+  updateHeader: (id: string, input: UpdateQuotationHeaderInput) => api.patch<Quotation>(`/quotations/${id}`, input),
   addRevision: (id: string, input: CreateRevisionInput) => api.post<Quotation>(`/quotations/${id}/revisions`, input),
   submitForApproval: (id: string) => api.post<Quotation>(`/quotations/${id}/submit-for-approval`),
   approve: (id: string, comments?: string) => api.post<Quotation>(`/quotations/${id}/approve`, { comments }),

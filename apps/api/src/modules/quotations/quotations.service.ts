@@ -18,8 +18,15 @@ import {
   RevisionForPersistence,
 } from './quotations.repository';
 
-const EDITABLE_HEADER_STATUSES: QuotationStatus[] = ['draft'];
-const REVISABLE_STATUSES: QuotationStatus[] = ['draft', 'rejected'];
+/**
+ * Also editable while pending_approval, not just draft — this company runs
+ * without a configured approval workflow (ApprovalService.start() auto-
+ * approves when none exists), so pending_approval is typically momentary
+ * anyway. A correction made here doesn't retroactively change anything an
+ * approver already decided on.
+ */
+const EDITABLE_HEADER_STATUSES: QuotationStatus[] = ['draft', 'pending_approval'];
+const REVISABLE_STATUSES: QuotationStatus[] = ['draft', 'pending_approval', 'rejected'];
 
 @Injectable()
 export class QuotationsService {
