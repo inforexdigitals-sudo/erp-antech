@@ -12,6 +12,7 @@ import { DataTable, Td, Th, TableWrap, Tr } from '../../../components/ui/Table';
 import { ApiError } from '../../../lib/api-client';
 import { formatCurrency, formatDate } from '../../../lib/utils';
 import { ProjectCostingPanel } from '../../project-costing/ProjectCostingPanel';
+import { useQuotation } from '../../quotations/hooks';
 import { usePickerUsers } from '../../shared/hooks';
 import { useProject, useProjectIssues, useProjectMutations, useProjectSiteReports, useProjectTasks } from '../hooks';
 import type { IssueSeverity, IssueStatus, MilestoneStatus, TaskStatus } from '../api';
@@ -310,6 +311,62 @@ function IssuesTab({ projectId }: { projectId: string }) {
   );
 }
 
+function QuotationTab({ quotationId }: { quotationId: string }) {
+  const { data: quotation, isLoading, error } = useQuotation(quotationId);
+
+  if (isLoading) return <div className="flex justify-center py-8"><Spinner /></div>;
+  if (error) return <ErrorNote>{error instanceof ApiError ? error.message : 'Could not load the quotation.'}</ErrorNote>;
+  if (!quotation) return null;
+
+  const rev = quotation.currentRevision;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2.5">
+          {quotation.quotationNumber}
+          <StatusPill domain="quotation" status={quotation.status} />
+        </CardTitle>
+        <span className="text-xs text-muted">{rev ? formatDate(rev.createdAt) : ''}</span>
+      </CardHeader>
+      {rev ? (
+        <>
+          <TableWrap>
+            <DataTable>
+              <thead>
+                <tr>
+                  <Th>Description</Th>
+                  <Th numeric>Qty</Th>
+                  <Th numeric>Unit Price</Th>
+                  <Th numeric>Line Total</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rev.items.map((item) => (
+                  <Tr key={item.id}>
+                    <Td>{item.description}</Td>
+                    <Td numeric>{item.quantity} {item.unit}</Td>
+                    <Td numeric>{formatCurrency(item.unitPrice)}</Td>
+                    <Td numeric>{formatCurrency(item.lineTotal)}</Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </DataTable>
+          </TableWrap>
+          <CardContent className="ml-auto flex max-w-[260px] flex-col gap-1.5 text-[13px]">
+            <div className="flex justify-between"><span className="text-muted">Subtotal</span><span className="num">{formatCurrency(rev.subtotal)}</span></div>
+            <div className="flex justify-between"><span className="text-muted">Discount</span><span className="num">-{formatCurrency(rev.discountAmount)}</span></div>
+            <div className="flex justify-between"><span className="text-muted">Tax</span><span className="num">{formatCurrency(rev.taxAmount)}</span></div>
+            <div className="flex justify-between border-t border-line pt-1.5 font-semibold"><span>Total</span><span className="num">{formatCurrency(rev.total)}</span></div>
+          </CardContent>
+        </>
+      ) : (
+        <CardContent>No revision yet.</CardContent>
+      )}
+    </Card>
+  );
+}
+
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: project, isLoading, error } = useProject(id);
@@ -337,6 +394,7 @@ export function ProjectDetailPage() {
           { key: 'site-reports', label: 'Site Reports' },
           { key: 'issues', label: 'Issues' },
           { key: 'costing', label: 'Costing' },
+          ...(project.quotationId ? [{ key: 'quotation', label: 'Quotation' }] : []),
         ]}
       />
       {tab === 'overview' && <OverviewTab project={project} />}
@@ -346,6 +404,7 @@ export function ProjectDetailPage() {
       {tab === 'site-reports' && <SiteReportsTab projectId={id} />}
       {tab === 'issues' && <IssuesTab projectId={id} />}
       {tab === 'costing' && <ProjectCostingPanel projectId={id} hasQuotation={!!project.quotationId} />}
+      {tab === 'quotation' && project.quotationId && <QuotationTab quotationId={project.quotationId} />}
     </div>
   );
 }

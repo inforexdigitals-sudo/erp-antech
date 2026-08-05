@@ -1,5 +1,6 @@
 import { api, uploadFile } from '../../lib/api-client';
-import type { CreateProjectInput, Project } from '../projects/api';
+import type { CreateQuotationInput } from '../quotations/api';
+import type { Project } from '../projects/api';
 
 export interface ImportedFileSummary {
   id: string;
@@ -11,6 +12,13 @@ export interface ImportedFileSummary {
   createdAt: string;
 }
 
+export interface ImportedLineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
 export interface ImportSuggestions {
   suggestedName: string;
   suggestedContractValue: number | null;
@@ -18,6 +26,7 @@ export interface ImportSuggestions {
   suggestedCustomerId: string | null;
   suggestedCustomerName: string | null;
   looksScanned: boolean;
+  suggestedItems: ImportedLineItem[];
 }
 
 export interface ExtractResult {
@@ -25,8 +34,11 @@ export interface ExtractResult {
   suggestions: ImportSuggestions;
 }
 
+/** Confirm now creates a real (already-"converted") quotation behind the project — see QuotationsService.createHistoricalProject. Same shape as CreateQuotationInput. */
+export type ConfirmImportInput = CreateQuotationInput;
+
 export const projectImportApi = {
   extract: (file: File) => uploadFile<ExtractResult>('/project-imports/extract', file),
   list: () => api.get<ImportedFileSummary[]>('/project-imports'),
-  confirm: (id: string, input: CreateProjectInput) => api.post<Project>(`/project-imports/${id}/confirm`, input),
+  confirm: (id: string, input: ConfirmImportInput) => api.post<Project>(`/project-imports/${id}/confirm`, input),
 };

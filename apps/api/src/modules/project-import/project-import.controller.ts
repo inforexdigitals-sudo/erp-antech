@@ -6,7 +6,7 @@ import { PERMISSIONS } from '../../common/constants/permissions';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { AuthenticatedUser } from '../../common/types/auth.types';
-import { CreateProjectDto } from '../projects/dto/create-project.dto';
+import { CreateQuotationDto } from '../quotations/dto/create-quotation.dto';
 import { ProjectImportService } from './project-import.service';
 
 /**
@@ -57,7 +57,7 @@ export class ProjectImportController {
   confirm(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: CreateProjectDto,
+    @Body() dto: CreateQuotationDto,
   ) {
     return this.projectImport.confirm(user.companyId, user.userId, id, dto);
   }

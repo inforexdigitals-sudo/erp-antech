@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateProjectInput } from '../projects/api';
+import type { ConfirmImportInput } from './api';
 import { projectImportApi } from './api';
 
 export function useProjectImports() {
@@ -13,7 +13,7 @@ export function useExtractImport() {
 export function useConfirmImport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: CreateProjectInput }) => projectImportApi.confirm(id, input),
+    mutationFn: ({ id, input }: { id: string; input: ConfirmImportInput }) => projectImportApi.confirm(id, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project-imports'] });
       qc.invalidateQueries({ queryKey: ['projects'] });

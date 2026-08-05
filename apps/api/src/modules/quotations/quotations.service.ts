@@ -4,7 +4,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { PaginatedResult, PaginationQueryDto, paginate } from '../../common/dto/pagination.dto';
 import { DocumentNumberingService } from '../../common/numbering/document-numbering.service';
 import { CustomersRepository } from '../crm/customers.repository';
-import { ProjectsRepository } from '../projects/projects.repository';
+import { ProjectsRepository, ProjectWithDetail } from '../projects/projects.repository';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 import { CreateRevisionDto } from './dto/create-revision.dto';
 import { QuotationItemInputDto } from './dto/quotation-item-input.dto';
@@ -320,6 +320,60 @@ export class QuotationsService {
     });
 
     return project;
+  }
+
+  /**
+   * Used by PDF import (see ProjectImportService.confirm) to backfill an
+   * already-completed historical deal: creates a priced quotation + first
+   * revision (like create()) and immediately produces its linked project
+   * (like convertToProject() above), skipping the draft→sent→accepted
+   * lifecycle since there's no live customer interaction to record for a
+   * historical import — the deal is already done, just being digitized.
+   */
+  async createHistoricalProject(companyId: string, actorUserId: string, dto: CreateQuotationDto): Promise<ProjectWithDetail> {
+    await this.assertCustomerBelongsToTenant(companyId, dto.customerId);
+    const revision = await this.priceItems(companyId, dto.items, dto.discountAmount);
+    const quotationNumber = await this.numbering.allocate(companyId, 'quotation');
+
+    const quotation = await this.repository.createWithFirstRevision(
+      {
+        companyId,
+        quotationNumber,
+        customerId: dto.customerId,
+        leadId: dto.leadId,
+        opportunityId: dto.opportunityId,
+        ownerUserId: dto.ownerUserId ?? actorUserId,
+        title: dto.title,
+        validUntil: dto.validUntil,
+        createdBy: actorUserId,
+      },
+      revision,
+      dto.notes,
+    );
+
+    const project = await this.projects.createFromQuotation({
+      companyId,
+      name: quotation.title,
+      customerId: quotation.customerId,
+      quotationId: quotation.id,
+      contractValue: Number(revision.total),
+    });
+
+    await this.repository.updateStatus(companyId, quotation.id, 'converted');
+    await this.audit.record({
+      companyId,
+      actorUserId,
+      action: 'create',
+      entityType: 'quotation',
+      entityId: quotation.id,
+      after: quotation,
+    });
+
+    const projectWithDetail = await this.projects.findDetailById(companyId, project.id);
+    if (!projectWithDetail) {
+      throw new NotFoundException('Project not found after creation.');
+    }
+    return projectWithDetail;
   }
 
   private async priceItems(

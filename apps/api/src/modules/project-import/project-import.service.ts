@@ -2,9 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ImportedFile } from '@prisma/client';
 import { PDFParse } from 'pdf-parse';
 import { CustomersRepository } from '../crm/customers.repository';
-import { CreateProjectDto } from '../projects/dto/create-project.dto';
 import { ProjectWithDetail } from '../projects/projects.repository';
-import { ProjectsService } from '../projects/projects.service';
+import { CreateQuotationDto } from '../quotations/dto/create-quotation.dto';
+import { QuotationsService } from '../quotations/quotations.service';
 import { extractSuggestions, ImportSuggestions } from './extract-suggestions.util';
 import { ProjectImportRepository } from './project-import.repository';
 
@@ -26,7 +26,7 @@ export class ProjectImportService {
   constructor(
     private readonly repository: ProjectImportRepository,
     private readonly customers: CustomersRepository,
-    private readonly projects: ProjectsService,
+    private readonly quotations: QuotationsService,
   ) {}
 
   private toSummary(row: ImportedFile): ImportedFileSummary {
@@ -90,7 +90,7 @@ export class ProjectImportService {
     companyId: string,
     actorUserId: string,
     importId: string,
-    dto: CreateProjectDto,
+    dto: CreateQuotationDto,
   ): Promise<ProjectWithDetail> {
     const row = await this.repository.findById(companyId, importId);
     if (!row) {
@@ -100,9 +100,13 @@ export class ProjectImportService {
       throw new BadRequestException('This import has already been processed.');
     }
 
-    // Reuses the real, validated project-creation path (tenant-owned customer check, audit log, etc.)
-    // rather than inserting a Project row directly — an imported project is a normal project afterward.
-    const project = await this.projects.create(companyId, actorUserId, dto);
+    // Reuses the real, validated quotation+project-creation path (tenant-owned
+    // customer check, pricing, numbering, audit log, etc.) rather than inserting
+    // rows directly — an imported project has a real itemized quotation behind
+    // it afterward, same as one created by hand. See
+    // QuotationsService.createHistoricalProject for why this skips the normal
+    // draft→sent→accepted lifecycle.
+    const project = await this.quotations.createHistoricalProject(companyId, actorUserId, dto);
     await this.repository.markCompleted(companyId, importId, project.id);
     return project;
   }
