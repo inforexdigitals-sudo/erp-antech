@@ -9,19 +9,40 @@ const DARK_TEXT = '#222222';
 const LINK_BLUE = '#1A56DB';
 
 /**
+ * A banner-shaped upload (wide letterhead artwork — logo mark + company
+ * details + divider already composed into one image, e.g. exported from
+ * Word/Canva) is meant to replace the whole header, not sit in a small
+ * logo box. A squarish/tall upload is treated as just a logo mark instead.
+ * 2.5 : 1 comfortably separates "AE" square icons from wide bands without
+ * needing a second, separate upload field for tenants who already have
+ * finished letterhead artwork.
+ */
+const BANNER_ASPECT_RATIO_THRESHOLD = 2.5;
+
+/** doc.image()'s underlying image opener, used here just to read natural pixel dimensions ahead of drawing — real at runtime (verified against pdfkit 0.19) but not part of @types/pdfkit's declarations. */
+interface ImageOpener {
+  openImage(src: Buffer): { width: number; height: number };
+}
+
+/**
  * Shared by every generated document (Quotation, Purchase Order, Invoice,
  * Payment Certificate) — see apps/api/README.md's PDF export section.
- * Mirrors apps/web/src/components/CompanyHeader.tsx's layout exactly (same
- * component the app's own topbar renders), so the letterhead looks the
- * same on screen and on paper: logo in a left column (~25% width, fixed
- * max height, never stretched), description lines + Web Page/Email/HP on
- * the right (~75%), a navy/secondary-blue/grey divider underneath. The
- * contact lines are real clickable link annotations, not just blue text.
+ *
+ * Two modes, chosen by the uploaded logo's aspect ratio:
+ *  - Banner: the image IS the header — drawn full page width, verbatim,
+ *    nothing else composed on top of or below it. For a tenant that
+ *    already has finished letterhead artwork ("paste my header, don't
+ *    recreate it"), this is pixel-for-pixel what they uploaded.
+ *  - Logo mark: mirrors apps/web/src/components/CompanyHeader.tsx's
+ *    layout — logo in a left column (~25% width, fixed max height, never
+ *    stretched), description lines + Web Page/Email/HP on the right
+ *    (~75%), a navy/secondary-blue/grey divider underneath. The contact
+ *    lines are real clickable link annotations, not just blue text.
  *
  * If no logo has been uploaded yet (company/logo.ts — stored as bytes on
- * the company row, not a stub), the company name stands in for it. SVG
- * isn't rasterized here — pdfkit's `.image()` only accepts PNG/JPEG — so
- * an SVG upload also falls back to the name.
+ * the company row, not a stub), the company name stands in for it in logo
+ * mark mode. SVG isn't rasterized here — pdfkit's `.image()` only accepts
+ * PNG/JPEG — so an SVG upload also falls back to the name.
  *
  * Returns the Y coordinate where the document's own content should start.
  */
@@ -29,16 +50,28 @@ export function drawLetterhead(doc: PDFKit.PDFDocument, company: Company): numbe
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const startX = doc.page.margins.left;
   const topY = doc.page.margins.top;
-  const MAX_LOGO_HEIGHT = 62;
 
+  const hasRasterLogo = company.logoData && company.logoMimeType && company.logoMimeType !== 'image/svg+xml';
+  const logoBuffer = hasRasterLogo ? Buffer.from(company.logoData as Buffer) : null;
+  const logoDimensions = logoBuffer ? (doc as unknown as ImageOpener).openImage(logoBuffer) : null;
+  const isBanner = logoDimensions ? logoDimensions.width / logoDimensions.height >= BANNER_ASPECT_RATIO_THRESHOLD : false;
+
+  if (logoBuffer && isBanner) {
+    const MAX_BANNER_HEIGHT = 120;
+    doc.image(logoBuffer, startX, topY, { fit: [pageWidth, MAX_BANNER_HEIGHT] });
+    const bannerHeight = Math.min(MAX_BANNER_HEIGHT, (pageWidth * logoDimensions!.height) / logoDimensions!.width);
+    doc.fillColor('#000000');
+    return topY + bannerHeight + 16;
+  }
+
+  const MAX_LOGO_HEIGHT = 62;
   const leftWidth = pageWidth * 0.25;
   const rightX = startX + leftWidth + 14;
   const rightWidth = pageWidth - leftWidth - 14;
 
   // Left column — logo (or the company name, if none has been uploaded yet).
-  const hasRasterLogo = company.logoData && company.logoMimeType && company.logoMimeType !== 'image/svg+xml';
-  if (hasRasterLogo) {
-    doc.image(Buffer.from(company.logoData as Buffer), startX, topY, { fit: [leftWidth, MAX_LOGO_HEIGHT] });
+  if (logoBuffer) {
+    doc.image(logoBuffer, startX, topY, { fit: [leftWidth, MAX_LOGO_HEIGHT] });
   } else {
     doc
       .fontSize(15)

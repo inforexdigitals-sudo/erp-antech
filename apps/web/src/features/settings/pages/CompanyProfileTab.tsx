@@ -49,7 +49,9 @@ function LogoUploader({ profile }: { profile: CompanyProfile }) {
       </div>
       <p className="text-xs text-muted">
         This image is stamped across the top of every generated PDF (Quotations, Purchase Orders, Invoices, Payment
-        Certificates). PNG, JPEG, or WebP, up to 2MB — a wide banner works best.
+        Certificates). PNG, JPEG, or WebP, up to 2MB. Upload a wide, finished letterhead banner (logo + company
+        details already laid out) to use it exactly as-is across the full page width; a small square/tall logo mark
+        is placed in a corner instead, with the details below filled in from this page.
       </p>
       {error && <ErrorNote>{error}</ErrorNote>}
     </div>
