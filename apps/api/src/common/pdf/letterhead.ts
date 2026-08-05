@@ -149,6 +149,26 @@ export function drawLetterhead(doc: PDFKit.PDFDocument, company: Company): numbe
   return cursorY;
 }
 
+/**
+ * The big document-type title (QUOTATION / PURCHASE ORDER / TAX INVOICE /
+ * PAYMENT CERTIFICATE), centered on the page, with the document number and
+ * its date stacked in the top-right corner — same layout on every
+ * generated document. Returns the Y coordinate where the next content
+ * (Bill To / Supplier / etc.) should start.
+ */
+export function drawDocumentTitle(doc: PDFKit.PDFDocument, y: number, title: string, documentNumber: string, date: Date): number {
+  const left = doc.page.margins.left;
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+  doc.fontSize(16).font('Helvetica-Bold').fillColor('#000000').text(title, left, y, { width: pageWidth, align: 'center' });
+  const titleBottomY = doc.y;
+
+  doc.fontSize(10).font('Helvetica').text(documentNumber, left, y, { width: pageWidth, align: 'right' });
+  doc.text(date.toLocaleDateString('en-SG'), left, doc.y, { width: pageWidth, align: 'right' });
+
+  return Math.max(titleBottomY, doc.y) + 16;
+}
+
 /** Stamps "Page X of Y" + a generated timestamp on every buffered page. Call once, right before `doc.end()`. */
 export function drawFooter(doc: PDFKit.PDFDocument): void {
   const range = doc.bufferedPageRange();

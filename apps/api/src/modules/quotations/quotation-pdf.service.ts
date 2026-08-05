@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CompanyRepository } from '../company/company.repository';
-import { drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
+import { drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
 import { drawTable, formatMoney } from '../../common/pdf/pdf-table';
 import { QuotationsService } from './quotations.service';
 
@@ -30,12 +30,7 @@ export class QuotationPdfService {
       const left = doc.page.margins.left;
       const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-      doc.fontSize(16).font('Helvetica-Bold').text('QUOTATION', left, y);
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .text(quotation.quotationNumber, left, y, { width: pageWidth, align: 'right' });
-      y = doc.y + 16;
+      y = drawDocumentTitle(doc, y, 'QUOTATION', quotation.quotationNumber, quotation.createdAt);
 
       doc.fontSize(10).font('Helvetica-Bold').text('Bill To', left, y);
       y = doc.y + 2;

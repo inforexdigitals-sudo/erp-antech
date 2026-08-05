@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CompanyRepository } from '../company/company.repository';
-import { drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
+import { drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
 import { drawTable, formatMoney } from '../../common/pdf/pdf-table';
 import { ClaimsService } from './claims.service';
 
@@ -34,12 +34,7 @@ export class PaymentCertificatePdfService {
       const left = doc.page.margins.left;
       const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-      doc.fontSize(16).font('Helvetica-Bold').text('PAYMENT CERTIFICATE', left, y);
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .text(certificate.certificateNumber, left, y, { width: pageWidth, align: 'right' });
-      y = doc.y + 16;
+      y = drawDocumentTitle(doc, y, 'PAYMENT CERTIFICATE', certificate.certificateNumber, certificate.issuedDate);
 
       doc.fontSize(10).font('Helvetica-Bold').text(claim.claimType === 'client' ? 'Client' : 'Subcontractor', left, y);
       y = doc.y + 2;
@@ -54,18 +49,14 @@ export class PaymentCertificatePdfService {
       doc
         .font('Helvetica')
         .fontSize(9)
-        .text(`Issued: ${new Date(certificate.issuedDate).toLocaleDateString('en-SG')}`, rightColX, y, {
-          width: pageWidth * 0.4,
-          align: 'right',
-        });
-      doc.text(
-        `Claim period: ${new Date(claim.claimPeriodStart).toLocaleDateString('en-SG')} – ${new Date(
-          claim.claimPeriodEnd,
-        ).toLocaleDateString('en-SG')}`,
-        rightColX,
-        doc.y,
-        { width: pageWidth * 0.4, align: 'right' },
-      );
+        .text(
+          `Claim period: ${new Date(claim.claimPeriodStart).toLocaleDateString('en-SG')} – ${new Date(
+            claim.claimPeriodEnd,
+          ).toLocaleDateString('en-SG')}`,
+          rightColX,
+          y,
+          { width: pageWidth * 0.4, align: 'right' },
+        );
       y = Math.max(doc.y, y) + 16;
 
       if (claim.items.length > 0) {

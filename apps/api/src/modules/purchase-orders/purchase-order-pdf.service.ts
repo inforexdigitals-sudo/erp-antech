@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CompanyRepository } from '../company/company.repository';
-import { drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
+import { drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
 import { drawTable, formatMoney } from '../../common/pdf/pdf-table';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
@@ -25,9 +25,7 @@ export class PurchaseOrderPdfService {
       const left = doc.page.margins.left;
       const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-      doc.fontSize(16).font('Helvetica-Bold').text('PURCHASE ORDER', left, y);
-      doc.fontSize(10).font('Helvetica').text(po.poNumber, left, y, { width: pageWidth, align: 'right' });
-      y = doc.y + 16;
+      y = drawDocumentTitle(doc, y, 'PURCHASE ORDER', po.poNumber, po.issueDate ?? po.createdAt);
 
       doc.fontSize(10).font('Helvetica-Bold').text('Supplier', left, y);
       y = doc.y + 2;
@@ -45,12 +43,6 @@ export class PurchaseOrderPdfService {
         .font('Helvetica')
         .fontSize(9)
         .text(`Status: ${po.status.replace(/_/g, ' ')}`, rightColX, y, { width: pageWidth * 0.4, align: 'right' });
-      if (po.issueDate) {
-        doc.text(`Issue date: ${new Date(po.issueDate).toLocaleDateString('en-SG')}`, rightColX, doc.y, {
-          width: pageWidth * 0.4,
-          align: 'right',
-        });
-      }
       if (po.expectedDeliveryDate) {
         doc.text(
           `Expected delivery: ${new Date(po.expectedDeliveryDate).toLocaleDateString('en-SG')}`,

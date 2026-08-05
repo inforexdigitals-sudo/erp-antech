@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ClaimsService } from '../claims/claims.service';
 import { CompanyRepository } from '../company/company.repository';
-import { drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
+import { drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
 import { drawTable, formatMoney } from '../../common/pdf/pdf-table';
 import { InvoicesService } from './invoices.service';
 
@@ -35,9 +35,7 @@ export class InvoicePdfService {
       const left = doc.page.margins.left;
       const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-      doc.fontSize(16).font('Helvetica-Bold').text('TAX INVOICE', left, y);
-      doc.fontSize(10).font('Helvetica').text(invoice.invoiceNumber, left, y, { width: pageWidth, align: 'right' });
-      y = doc.y + 16;
+      y = drawDocumentTitle(doc, y, 'TAX INVOICE', invoice.invoiceNumber, invoice.issueDate);
 
       doc.fontSize(10).font('Helvetica-Bold').text('Bill To', left, y);
       y = doc.y + 2;
@@ -55,10 +53,6 @@ export class InvoicePdfService {
         .font('Helvetica')
         .fontSize(9)
         .text(`Status: ${invoice.status.replace(/_/g, ' ')}`, rightColX, y, { width: pageWidth * 0.4, align: 'right' });
-      doc.text(`Issue date: ${new Date(invoice.issueDate).toLocaleDateString('en-SG')}`, rightColX, doc.y, {
-        width: pageWidth * 0.4,
-        align: 'right',
-      });
       if (invoice.dueDate) {
         doc.text(`Due date: ${new Date(invoice.dueDate).toLocaleDateString('en-SG')}`, rightColX, doc.y, {
           width: pageWidth * 0.4,
