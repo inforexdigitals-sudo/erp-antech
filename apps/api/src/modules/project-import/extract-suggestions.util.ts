@@ -62,13 +62,16 @@ function findStartDate(text: string): string | null {
   return null;
 }
 
-const NUMBER_TOKEN = /-?\$?\d{1,3}(?:,\d{3})*(?:\.\d+)?/g;
+/** Either comma-grouped thousands ("2,520.00") or a plain digit run ("1200") — capping the ungrouped case at 3 digits (as `\d{1,3}(?:,\d{3})*` alone does) silently truncates "1200" into "120". */
+const NUMBER_TOKEN = /-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?/g;
 /** Rows that are a document total/tax summary, not a purchasable line item — these commonly end in a number too, so they'd otherwise get mistaken for one. */
 const SUMMARY_ROW = /\b(sub\s?total|grand\s?total|total|gst|vat|tax)\b/i;
 const MIN_DESCRIPTION_LENGTH = 3;
+/** A single stray number (a date, a unit count, a document number) is common in header/metadata lines; a real item row has at least qty+amount. */
+const MIN_NUMBER_TOKENS = 2;
 
 /**
- * Heuristic table-row parser: takes the trailing 1-3 numeric tokens on a line
+ * Heuristic table-row parser: takes the trailing 2-3 numeric tokens on a line
  * as amount/rate/qty and whatever text precedes them as the description.
  * Old quotations exported to PDF vary a lot in column layout, so this is
  * deliberately loose — it's a starting point for the review table, not a
@@ -82,7 +85,7 @@ function findLineItems(text: string): ImportedLineItem[] {
     if (!line || SUMMARY_ROW.test(line) || /^page\s+\d+/i.test(line)) continue;
 
     const matches = Array.from(line.matchAll(NUMBER_TOKEN));
-    if (matches.length === 0) continue;
+    if (matches.length < MIN_NUMBER_TOKENS) continue;
 
     const description = line.slice(0, matches[0].index).trim();
     if (description.length < MIN_DESCRIPTION_LENGTH || /^\d+$/.test(description)) continue;
@@ -95,13 +98,9 @@ function findLineItems(text: string): ImportedLineItem[] {
     let lineTotal: number;
     if (trailing.length >= 3) {
       [quantity, unitPrice, lineTotal] = trailing.slice(-3);
-    } else if (trailing.length === 2) {
+    } else {
       [quantity, lineTotal] = trailing;
       unitPrice = quantity !== 0 ? lineTotal / quantity : lineTotal;
-    } else {
-      quantity = 1;
-      unitPrice = trailing[0];
-      lineTotal = trailing[0];
     }
     if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice) || !Number.isFinite(lineTotal)) continue;
 
