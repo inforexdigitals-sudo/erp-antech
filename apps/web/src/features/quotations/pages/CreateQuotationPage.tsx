@@ -13,17 +13,17 @@ import { useCustomers } from '../../shared/hooks';
 import { useCreateQuotation } from '../hooks';
 import type { QuotationItemInput } from '../api';
 
+/** unit isn't shown as a column anymore, but QuotationItemInputDto still requires a non-empty string server-side — default it rather than surface it. */
 function newItem(): QuotationItemInput {
-  return { description: '', category: 'material', unit: '', quantity: 1, unitCost: 0, unitPrice: 0 };
+  return { description: '', category: 'material', unit: 'unit', quantity: 1, unitCost: 0, unitPrice: 0 };
 }
 
 const COLUMNS: LineItemColumn<QuotationItemInput>[] = [
-  { key: 'description', label: 'Description', type: 'text', width: '28%' },
-  { key: 'category', label: 'Category', type: 'select', options: COST_CATEGORIES, width: '14%' },
-  { key: 'unit', label: 'Unit', type: 'text', width: '10%' },
-  { key: 'quantity', label: 'Qty', type: 'number', min: 0, step: 0.01, width: '10%' },
-  { key: 'unitCost', label: 'Unit Cost', type: 'number', min: 0, step: 0.01, width: '12%' },
-  { key: 'unitPrice', label: 'Unit Price', type: 'number', min: 0, step: 0.01, width: '12%' },
+  { key: 'description', label: 'Description', type: 'text', width: '32%' },
+  { key: 'category', label: 'Category', type: 'select', options: COST_CATEGORIES, width: '16%' },
+  { key: 'quantity', label: 'Qty', type: 'number', min: 0, step: 0.01, width: '12%' },
+  { key: 'unitCost', label: 'Unit Cost', type: 'number', min: 0, step: 0.01, width: '14%' },
+  { key: 'unitPrice', label: 'Unit Price', type: 'number', min: 0, step: 0.01, width: '14%' },
 ];
 
 export function CreateQuotationPage() {
