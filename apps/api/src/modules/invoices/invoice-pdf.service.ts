@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ClaimsService } from '../claims/claims.service';
 import { CompanyRepository } from '../company/company.repository';
-import { drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
+import { drawClosingBlock, drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
 import { drawTable, formatMoney } from '../../common/pdf/pdf-table';
 import { InvoicesService } from './invoices.service';
 
@@ -102,6 +102,7 @@ export class InvoicePdfService {
       totalsRow('Amount Paid', formatMoney(invoice.amountPaid, currency));
       totalsRow('Balance Due', formatMoney(balanceDue, currency), true);
 
+      y = drawClosingBlock(doc, y + 20, company.name);
       drawFooter(doc);
     });
 

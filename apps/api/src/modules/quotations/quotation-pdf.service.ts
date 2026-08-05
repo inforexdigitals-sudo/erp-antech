@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CompanyRepository } from '../company/company.repository';
-import { drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
+import { drawClosingBlock, drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
 import { drawTable, formatMoney } from '../../common/pdf/pdf-table';
 import { QuotationsService } from './quotations.service';
 
@@ -100,8 +100,10 @@ export class QuotationPdfService {
         doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000').text('Notes', left, y);
         y = doc.y + 2;
         doc.font('Helvetica').text(rev.notes, left, y, { width: pageWidth });
+        y = doc.y;
       }
 
+      y = drawClosingBlock(doc, y + 20, company.name);
       drawFooter(doc);
     });
 

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CompanyRepository } from '../company/company.repository';
-import { drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
+import { drawClosingBlock, drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
 import { drawTable, formatMoney } from '../../common/pdf/pdf-table';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
@@ -94,8 +94,10 @@ export class PurchaseOrderPdfService {
         doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000').text('Payment Terms', left, y);
         y = doc.y + 2;
         doc.font('Helvetica').text(po.paymentTerms, left, y, { width: pageWidth });
+        y = doc.y;
       }
 
+      y = drawClosingBlock(doc, y + 20, company.name);
       drawFooter(doc);
     });
 

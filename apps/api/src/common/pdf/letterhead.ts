@@ -169,6 +169,46 @@ export function drawDocumentTitle(doc: PDFKit.PDFDocument, y: number, title: str
   return Math.max(titleBottomY, doc.y) + 16;
 }
 
+/**
+ * Closing line + "Yours Faithfully" / "Confirmed and Accepted By" signature
+ * boxes. Drawn once as the final piece of document content (unlike
+ * drawFooter's Page X of Y, which repeats on every page) — call it last,
+ * right before drawFooter(), so it lands wherever the content naturally
+ * ends, i.e. the last page.
+ */
+export function drawClosingBlock(doc: PDFKit.PDFDocument, y: number, companyName: string): number {
+  const left = doc.page.margins.left;
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+  doc
+    .fontSize(9)
+    .font('Helvetica')
+    .fillColor('#000000')
+    .text('We trust the above meet your requirement and look forward to hear from you soon. Thank you.', left, y, {
+      width: pageWidth,
+    });
+  y = doc.y + 20;
+
+  const boxWidth = pageWidth * 0.42;
+  const boxHeight = 90;
+  const rightBoxX = left + pageWidth - boxWidth;
+
+  doc
+    .fontSize(9)
+    .font('Helvetica-Bold')
+    .text('Confirmed and Accepted By,', rightBoxX, y, { width: boxWidth, align: 'center' });
+  const boxTopY = doc.y + 6;
+
+  doc.lineWidth(1).strokeColor('#000000');
+  doc.rect(left, boxTopY, boxWidth, boxHeight).stroke();
+  doc.rect(rightBoxX, boxTopY, boxWidth, boxHeight).stroke();
+
+  doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000').text('Yours Faithfully', left + 8, boxTopY + 8);
+  doc.text(companyName, left + 8, boxTopY + boxHeight - 20, { width: boxWidth - 16 });
+
+  return boxTopY + boxHeight + 16;
+}
+
 /** Stamps "Page X of Y" on every buffered page. Call once, right before `doc.end()`. */
 export function drawFooter(doc: PDFKit.PDFDocument): void {
   const range = doc.bufferedPageRange();
