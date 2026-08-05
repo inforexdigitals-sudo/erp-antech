@@ -10,9 +10,13 @@ import { ProjectsRepository } from '../projects/projects.repository';
 import { SuppliersRepository } from '../suppliers/suppliers.repository';
 import { CreateDeliveryDto } from './dto/create-delivery.dto';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
+import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { PurchaseOrderStatus } from './purchase-order.types';
 import { PurchaseOrderWithDetail, PurchaseOrdersRepository } from './purchase-orders.repository';
 import { SupplierNotificationService } from './supplier-notification.service';
+
+/** Nothing has been committed to the project cost ledger yet in any of these — that only happens on actual approval (see approveInternally) — so editing is safe. */
+const EDITABLE_STATUSES: PurchaseOrderStatus[] = ['draft', 'pending_approval', 'rejected'];
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -81,6 +85,40 @@ export class PurchaseOrdersService {
       after: po,
     });
     return po;
+  }
+
+  /** Edit action, exposed once a PO already exists — header fields and/or a full item replacement, gated to statuses where no cost has been committed to the project ledger yet. */
+  async update(companyId: string, id: string, actorUserId: string, dto: UpdatePurchaseOrderDto): Promise<PurchaseOrderWithDetail> {
+    const existing = await this.findOne(companyId, id);
+    if (!EDITABLE_STATUSES.includes(existing.status as PurchaseOrderStatus)) {
+      throw new ForbiddenException(`A purchase order in '${existing.status}' status cannot be edited.`);
+    }
+
+    const updated = await this.repository.update(companyId, id, {
+      expectedDeliveryDate: dto.expectedDeliveryDate,
+      paymentTerms: dto.paymentTerms,
+      taxAmount: dto.taxAmount,
+      items: dto.items?.map((item) => ({
+        itemLibraryId: item.itemLibraryId,
+        description: item.description,
+        unit: item.unit,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal: round2(item.quantity * item.unitPrice),
+        costCategory: item.costCategory,
+      })),
+    });
+
+    await this.audit.record({
+      companyId,
+      actorUserId,
+      action: 'update',
+      entityType: 'purchase_order',
+      entityId: id,
+      before: existing,
+      after: updated,
+    });
+    return updated;
   }
 
   async findOne(companyId: string, id: string): Promise<PurchaseOrderWithDetail> {

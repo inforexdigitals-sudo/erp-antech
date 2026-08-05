@@ -28,6 +28,10 @@ export function useInvoiceActions(id: string) {
     qc.invalidateQueries({ queryKey: ['claims'] });
   };
   return {
+    update: useMutation({
+      mutationFn: (input: { dueDate?: string; taxAmount?: number }) => invoicesApi.update(id, input),
+      onSuccess: invalidate,
+    }),
     send: useMutation({ mutationFn: () => invoicesApi.send(id), onSuccess: invalidate }),
     void: useMutation({ mutationFn: () => invoicesApi.void(id), onSuccess: invalidate }),
     recordPayment: useMutation({

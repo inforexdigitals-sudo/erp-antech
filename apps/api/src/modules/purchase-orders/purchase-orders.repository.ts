@@ -74,6 +74,68 @@ export class PurchaseOrdersRepository {
     return po;
   }
 
+  /**
+   * Header + full item replacement in one call — a PO has no revision
+   * history the way Quotations do, so an edit just overwrites the
+   * current line items rather than versioning them. Safe only while
+   * nothing downstream references the old item rows yet (no deliveries
+   * — see PurchaseOrdersService.update's status guard), since
+   * `items: { deleteMany: {}, create: [...] }` reassigns new ids.
+   */
+  async update(
+    companyId: string,
+    id: string,
+    params: {
+      expectedDeliveryDate?: string;
+      paymentTerms?: string;
+      taxAmount?: number;
+      items?: Array<{
+        itemLibraryId?: string;
+        description: string;
+        unit: string;
+        quantity: number;
+        unitPrice: number;
+        lineTotal: number;
+        costCategory: string;
+      }>;
+    },
+  ): Promise<PurchaseOrderWithDetail> {
+    const existing = await this.prisma.purchaseOrder.findFirstOrThrow({ where: { id, companyId } });
+    const taxAmount = params.taxAmount ?? Number(existing.taxAmount);
+    const subtotal = params.items
+      ? round2(params.items.reduce((sum, item) => sum + item.lineTotal, 0))
+      : Number(existing.subtotal);
+    const total = round2(subtotal + taxAmount);
+
+    return this.prisma.purchaseOrder.update({
+      where: { id },
+      data: {
+        expectedDeliveryDate: params.expectedDeliveryDate ? new Date(params.expectedDeliveryDate) : undefined,
+        paymentTerms: params.paymentTerms,
+        taxAmount,
+        subtotal,
+        total,
+        ...(params.items
+          ? {
+              items: {
+                deleteMany: {},
+                create: params.items.map((item) => ({
+                  itemLibraryId: item.itemLibraryId,
+                  description: item.description,
+                  unit: item.unit,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  lineTotal: item.lineTotal,
+                  costCategory: item.costCategory,
+                })),
+              },
+            }
+          : {}),
+      },
+      include: poDetailInclude,
+    });
+  }
+
   async findById(companyId: string, id: string): Promise<PurchaseOrderWithDetail | null> {
     return this.prisma.purchaseOrder.findFirst({
       where: { id, companyId },

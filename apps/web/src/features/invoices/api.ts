@@ -40,6 +40,7 @@ export const invoicesApi = {
   get: (id: string) => api.get<Invoice>(`/invoices/${id}`),
   createFromClaim: (claimId: string, input: { dueDate?: string; taxAmount?: number }) =>
     api.post<Invoice>(`/claims/${claimId}/invoice`, input),
+  update: (id: string, input: { dueDate?: string; taxAmount?: number }) => api.patch<Invoice>(`/invoices/${id}`, input),
   send: (id: string) => api.post<Invoice>(`/invoices/${id}/send`),
   void: (id: string) => api.post<Invoice>(`/invoices/${id}/void`),
   recordPayment: (id: string, input: { amount: number; paymentDate?: string; method?: string; reference?: string }) =>

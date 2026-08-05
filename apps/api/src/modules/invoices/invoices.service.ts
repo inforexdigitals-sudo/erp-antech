@@ -5,6 +5,7 @@ import { DocumentNumberingService } from '../../common/numbering/document-number
 import { ClaimsService } from '../claims/claims.service';
 import { CreateInvoiceFromClaimDto } from './dto/create-invoice-from-claim.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
+import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { InvoiceWithDetail, InvoicesRepository } from './invoices.repository';
 
 const VOIDABLE_STATUSES = ['draft', 'sent'];
@@ -74,6 +75,38 @@ export class InvoicesService {
       throw new NotFoundException('Invoice not found.');
     }
     return invoice;
+  }
+
+  /**
+   * Edit action for a not-yet-sent invoice — dueDate and taxAmount only.
+   * There's no line-item revision here the way Quotations/POs have one:
+   * subtotal is fixed to the claim it was created from, so the amount
+   * itself can only change by editing that claim, not this invoice.
+   */
+  async update(companyId: string, id: string, actorUserId: string, dto: UpdateInvoiceDto): Promise<InvoiceWithDetail> {
+    const existing = await this.findOne(companyId, id);
+    if (existing.status !== 'draft') {
+      throw new ForbiddenException(`An invoice in '${existing.status}' status cannot be edited — only while still draft, before it's sent.`);
+    }
+
+    const taxAmount = dto.taxAmount !== undefined ? round2(dto.taxAmount) : Number(existing.taxAmount);
+    const total = round2(Number(existing.subtotal) + taxAmount);
+    const updated = await this.repository.update(companyId, id, {
+      dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+      taxAmount,
+      total,
+    });
+
+    await this.audit.record({
+      companyId,
+      actorUserId,
+      action: 'update',
+      entityType: 'invoice',
+      entityId: id,
+      before: existing,
+      after: updated,
+    });
+    return updated;
   }
 
   async list(

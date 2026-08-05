@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PERMISSIONS } from '../../common/constants/permissions';
@@ -8,6 +8,7 @@ import { AuthenticatedUser } from '../../common/types/auth.types';
 import { CreateInvoiceFromClaimDto } from './dto/create-invoice-from-claim.dto';
 import { QueryInvoicesDto } from './dto/query-invoices.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
+import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { InvoicePdfService } from './invoice-pdf.service';
 import { InvoicesService } from './invoices.service';
 
@@ -39,6 +40,16 @@ export class InvoicesController {
     @Body() dto: CreateInvoiceFromClaimDto,
   ) {
     return this.invoices.createFromClaim(user.companyId, user.userId, claimId, dto);
+  }
+
+  @Patch('invoices/:id')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_EDIT)
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateInvoiceDto,
+  ) {
+    return this.invoices.update(user.companyId, id, user.userId, dto);
   }
 
   @Post('invoices/:id/send')

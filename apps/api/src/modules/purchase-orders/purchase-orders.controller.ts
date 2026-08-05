@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PERMISSIONS } from '../../common/constants/permissions';
@@ -9,6 +9,7 @@ import { AuthenticatedUser } from '../../common/types/auth.types';
 import { CreateDeliveryDto } from './dto/create-delivery.dto';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { QueryPurchaseOrdersDto } from './dto/query-purchase-orders.dto';
+import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import { PurchaseOrderPdfService } from './purchase-order-pdf.service';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
@@ -36,6 +37,16 @@ export class PurchaseOrdersController {
   @RequirePermission(PERMISSIONS.PURCHASE_ORDER_CREATE)
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreatePurchaseOrderDto) {
     return this.purchaseOrders.create(user.companyId, user.userId, dto);
+  }
+
+  @Patch(':id')
+  @RequirePermission(PERMISSIONS.PURCHASE_ORDER_EDIT)
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePurchaseOrderDto,
+  ) {
+    return this.purchaseOrders.update(user.companyId, id, user.userId, dto);
   }
 
   @Post(':id/submit-for-approval')

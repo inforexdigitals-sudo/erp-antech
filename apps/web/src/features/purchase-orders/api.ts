@@ -66,6 +66,13 @@ export interface CreatePurchaseOrderInput {
   items: PoItemInput[];
 }
 
+export interface UpdatePurchaseOrderInput {
+  expectedDeliveryDate?: string;
+  paymentTerms?: string;
+  taxAmount?: number;
+  items?: PoItemInput[];
+}
+
 export interface QueryPurchaseOrders {
   page?: number;
   pageSize?: number;
@@ -78,6 +85,7 @@ export const purchaseOrdersApi = {
   list: (query: QueryPurchaseOrders) => api.get<PaginatedResult<PurchaseOrder>>(`/purchase-orders${toQueryString(query)}`),
   get: (id: string) => api.get<PurchaseOrder>(`/purchase-orders/${id}`),
   create: (input: CreatePurchaseOrderInput) => api.post<PurchaseOrder>('/purchase-orders', input),
+  update: (id: string, input: UpdatePurchaseOrderInput) => api.patch<PurchaseOrder>(`/purchase-orders/${id}`, input),
   submitForApproval: (id: string) => api.post<PurchaseOrder>(`/purchase-orders/${id}/submit-for-approval`),
   approve: (id: string) => api.post<PurchaseOrder>(`/purchase-orders/${id}/approve`, {}),
   reject: (id: string) => api.post<PurchaseOrder>(`/purchase-orders/${id}/reject`, {}),

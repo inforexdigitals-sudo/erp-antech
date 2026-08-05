@@ -15,9 +15,12 @@ import { formatCurrency, formatDate } from '../../../lib/utils';
 import { COST_CATEGORIES } from '../../shared/constants';
 import { usePickerProjects, usePickerSuppliers } from '../../shared/hooks';
 import { useCreatePurchaseOrder, usePurchaseOrder, usePurchaseOrderActions, usePurchaseOrders } from '../hooks';
-import type { CreatePurchaseOrderInput, PoItemInput, PurchaseOrderStatus } from '../api';
+import type { CreatePurchaseOrderInput, PoItemInput, PurchaseOrder, PurchaseOrderStatus } from '../api';
 
 const STATUSES: PurchaseOrderStatus[] = ['draft', 'pending_approval', 'approved', 'rejected', 'issued', 'partially_received', 'received', 'closed', 'cancelled'];
+
+/** Nothing has been committed to the project cost ledger yet in any of these — matches PurchaseOrdersService's EDITABLE_STATUSES. */
+const EDITABLE_STATUSES: PurchaseOrderStatus[] = ['draft', 'pending_approval', 'rejected'];
 
 function newItem(): PoItemInput {
   return { description: '', unit: '', quantity: 1, unitPrice: 0, costCategory: 'material' };
@@ -84,6 +87,65 @@ function CreatePoModal({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
+function EditPoModal({ po, onClose }: { po: PurchaseOrder; onClose: () => void }) {
+  const { update } = usePurchaseOrderActions(po.id);
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(po.expectedDeliveryDate ? po.expectedDeliveryDate.slice(0, 10) : '');
+  const [paymentTerms, setPaymentTerms] = useState(po.paymentTerms ?? '');
+  const [taxAmount, setTaxAmount] = useState(Number(po.taxAmount));
+  const [items, setItems] = useState<PoItemInput[]>(
+    po.items.map((i) => ({
+      description: i.description,
+      unit: i.unit,
+      quantity: Number(i.quantity),
+      unitPrice: Number(i.unitPrice),
+      costCategory: i.costCategory,
+    })),
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await update.mutateAsync({ expectedDeliveryDate: expectedDeliveryDate || undefined, paymentTerms: paymentTerms || undefined, taxAmount, items });
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save these changes.');
+    }
+  }
+
+  const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+
+  return (
+    <Modal open onClose={onClose} title={`Edit ${po.poNumber}`} size="lg">
+      <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+          <Field label="Expected Delivery" htmlFor="epo-date">
+            <Input id="epo-date" type="date" value={expectedDeliveryDate} onChange={(e) => setExpectedDeliveryDate(e.target.value)} />
+          </Field>
+          <Field label="Payment Terms" htmlFor="epo-terms">
+            <Input id="epo-terms" value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
+          </Field>
+          <Field label="Tax Amount" htmlFor="epo-tax">
+            <Input id="epo-tax" type="number" min={0} step={0.01} value={taxAmount} onChange={(e) => setTaxAmount(Number(e.target.value))} />
+          </Field>
+        </div>
+        <LineItemsEditor items={items} onChange={setItems} columns={COLUMNS} newRow={newItem} />
+        <div className="text-right text-sm text-muted">
+          Total: <span className="num font-semibold text-ink">{formatCurrency(subtotal + taxAmount)}</span>
+        </div>
+        {error && <p className="text-[12.5px] text-critical">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" disabled={update.isPending}>
+            {update.isPending ? 'Saving…' : 'Save Changes'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function DeliveryForm({ poId, items, onDone }: { poId: string; items: { id: string; description: string; quantity: string; quantityReceived: string }[]; onDone: () => void }) {
   const { recordDelivery } = usePurchaseOrderActions(poId);
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().slice(0, 10));
@@ -139,6 +201,7 @@ function PoDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
   const { data: po, isLoading, error } = usePurchaseOrder(id);
   const actions = usePurchaseOrderActions(id);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   async function run(fn: () => Promise<unknown>) {
     setActionError(null);
@@ -159,8 +222,9 @@ function PoDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
             <StatusPill domain="purchase_order" status={po.status} />
             <span className="text-xs text-muted">{po.supplier.name} · {po.project.name}</span>
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
             <DownloadPdfButton path={`/purchase-orders/${po.id}/pdf`} filename={`${po.poNumber}.pdf`} onError={setActionError} />
+            {EDITABLE_STATUSES.includes(po.status) && <Button onClick={() => setEditing(true)}>Edit</Button>}
           </div>
           <TableWrap>
             <DataTable>
@@ -219,6 +283,7 @@ function PoDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
           )}
         </div>
       )}
+      {po && editing && <EditPoModal po={po} onClose={() => setEditing(false)} />}
     </Modal>
   );
 }

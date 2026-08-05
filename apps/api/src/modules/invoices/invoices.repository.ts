@@ -47,6 +47,14 @@ export class InvoicesRepository {
     });
   }
 
+  async update(companyId: string, id: string, params: { dueDate?: Date; taxAmount: number; total: number }): Promise<InvoiceWithDetail> {
+    return this.prisma.invoice.update({
+      where: { id },
+      data: { dueDate: params.dueDate, taxAmount: params.taxAmount, total: params.total },
+      include: invoiceDetailInclude,
+    });
+  }
+
   async findById(companyId: string, id: string): Promise<InvoiceWithDetail | null> {
     return this.prisma.invoice.findFirst({ where: { id, companyId }, include: invoiceDetailInclude });
   }

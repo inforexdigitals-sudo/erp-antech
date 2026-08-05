@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreatePurchaseOrderInput, purchaseOrdersApi, QueryPurchaseOrders } from './api';
+import { CreatePurchaseOrderInput, purchaseOrdersApi, QueryPurchaseOrders, UpdatePurchaseOrderInput } from './api';
 
 export function usePurchaseOrders(query: QueryPurchaseOrders) {
   return useQuery({ queryKey: ['purchase-orders', query], queryFn: () => purchaseOrdersApi.list(query) });
@@ -21,6 +21,7 @@ export function usePurchaseOrderActions(id: string) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ['purchase-orders'] });
   return {
+    update: useMutation({ mutationFn: (input: UpdatePurchaseOrderInput) => purchaseOrdersApi.update(id, input), onSuccess: invalidate }),
     submitForApproval: useMutation({ mutationFn: () => purchaseOrdersApi.submitForApproval(id), onSuccess: invalidate }),
     approve: useMutation({ mutationFn: () => purchaseOrdersApi.approve(id), onSuccess: invalidate }),
     reject: useMutation({ mutationFn: () => purchaseOrdersApi.reject(id), onSuccess: invalidate }),
