@@ -169,10 +169,9 @@ export function drawDocumentTitle(doc: PDFKit.PDFDocument, y: number, title: str
   return Math.max(titleBottomY, doc.y) + 16;
 }
 
-/** Stamps "Page X of Y" + a generated timestamp on every buffered page. Call once, right before `doc.end()`. */
+/** Stamps "Page X of Y" on every buffered page. Call once, right before `doc.end()`. */
 export function drawFooter(doc: PDFKit.PDFDocument): void {
   const range = doc.bufferedPageRange();
-  const generatedAt = new Date().toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' });
 
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
@@ -183,10 +182,6 @@ export function drawFooter(doc: PDFKit.PDFDocument): void {
     doc
       .fontSize(7)
       .font('Helvetica')
-      .fillColor('#999999')
-      .text(`Generated ${generatedAt}`, doc.page.margins.left, bottom, { lineBreak: false });
-    doc
-      .fontSize(7)
       .fillColor('#999999')
       .text(`Page ${i - range.start + 1} of ${range.count}`, doc.page.margins.left, bottom, {
         width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
