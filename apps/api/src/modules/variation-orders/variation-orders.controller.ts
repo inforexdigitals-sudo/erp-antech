@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -8,6 +8,7 @@ import { AuthenticatedUser } from '../../common/types/auth.types';
 import { CreateVariationOrderDto } from './dto/create-variation-order.dto';
 import { CreateVoRevisionDto } from './dto/create-vo-revision.dto';
 import { QueryVariationOrdersDto } from './dto/query-variation-orders.dto';
+import { UpdateVariationOrderDto } from './dto/update-variation-order.dto';
 import { VariationOrdersService } from './variation-orders.service';
 
 @ApiTags('variation-orders')
@@ -31,6 +32,16 @@ export class VariationOrdersController {
   @RequirePermission(PERMISSIONS.VARIATION_ORDER_CREATE)
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateVariationOrderDto) {
     return this.variationOrders.create(user.companyId, user.userId, dto);
+  }
+
+  @Patch(':id')
+  @RequirePermission(PERMISSIONS.VARIATION_ORDER_EDIT)
+  updateHeader(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateVariationOrderDto,
+  ) {
+    return this.variationOrders.updateHeader(user.companyId, id, user.userId, dto);
   }
 
   @Post(':id/revisions')

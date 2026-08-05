@@ -79,6 +79,15 @@ export class VariationOrdersRepository {
     });
   }
 
+  async updateHeader(
+    companyId: string,
+    id: string,
+    params: { title?: string; cause?: string; scheduleImpactDays?: number },
+  ): Promise<VariationOrderWithDetail> {
+    await this.prisma.variationOrder.update({ where: { id, companyId }, data: params });
+    return this.prisma.variationOrder.findUniqueOrThrow({ where: { id }, include: voDetailInclude });
+  }
+
   async findById(companyId: string, id: string): Promise<VariationOrderWithDetail | null> {
     return this.prisma.variationOrder.findFirst({ where: { id, companyId }, include: voDetailInclude });
   }

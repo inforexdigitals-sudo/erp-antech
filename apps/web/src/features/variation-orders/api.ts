@@ -57,6 +57,12 @@ export interface CreateVariationOrderInput {
   items: VoItemInput[];
 }
 
+export interface UpdateVariationOrderHeaderInput {
+  title?: string;
+  cause?: VariationOrderCause;
+  scheduleImpactDays?: number;
+}
+
 export interface QueryVariationOrders {
   page?: number;
   pageSize?: number;
@@ -68,6 +74,8 @@ export const variationOrdersApi = {
   list: (query: QueryVariationOrders) => api.get<PaginatedResult<VariationOrder>>(`/variation-orders${toQueryString(query)}`),
   get: (id: string) => api.get<VariationOrder>(`/variation-orders/${id}`),
   create: (input: CreateVariationOrderInput) => api.post<VariationOrder>('/variation-orders', input),
+  updateHeader: (id: string, input: UpdateVariationOrderHeaderInput) =>
+    api.patch<VariationOrder>(`/variation-orders/${id}`, input),
   addRevision: (id: string, input: { notes?: string; items: VoItemInput[] }) =>
     api.post<VariationOrder>(`/variation-orders/${id}/revisions`, input),
   submitForApproval: (id: string) => api.post<VariationOrder>(`/variation-orders/${id}/submit-for-approval`),

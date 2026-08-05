@@ -31,7 +31,7 @@ function makeVo(overrides: Record<string, unknown> = {}) {
 describe('VariationOrdersService', () => {
   let service: VariationOrdersService;
   let repository: jest.Mocked<
-    Pick<VariationOrdersRepository, 'create' | 'findById' | 'addRevision' | 'updateStatus' | 'tryTransitionStatus' | 'list'>
+    Pick<VariationOrdersRepository, 'create' | 'findById' | 'addRevision' | 'updateHeader' | 'updateStatus' | 'tryTransitionStatus' | 'list'>
   >;
   let projects: jest.Mocked<Pick<ProjectsRepository, 'findById' | 'incrementContractValue'>>;
   let approval: jest.Mocked<Pick<ApprovalService, 'start' | 'decide' | 'getOpenRequestForEntity'>>;
@@ -42,6 +42,7 @@ describe('VariationOrdersService', () => {
       create: jest.fn(),
       findById: jest.fn().mockResolvedValue(makeVo()),
       addRevision: jest.fn(),
+      updateHeader: jest.fn(),
       updateStatus: jest.fn(),
       tryTransitionStatus: jest.fn().mockResolvedValue(true),
       list: jest.fn(),
@@ -171,14 +172,52 @@ describe('VariationOrdersService', () => {
   });
 
   describe('addRevision', () => {
-    it('refuses to revise a VO pending approval', async () => {
+    it('allows revising a VO pending approval — addRevision resets it to draft itself, so this withdraws it from review rather than mutating an open request', async () => {
       repository.findById.mockResolvedValue(makeVo({ status: 'pending_approval' }) as never);
+      repository.addRevision.mockResolvedValue(makeVo({ status: 'draft' }) as never);
+
+      await expect(
+        service.addRevision(COMPANY_ID, VO_ID, USER_ID, {
+          items: [{ description: 'Revised', costCategory: 'material', quantity: 1, unitCost: 1, unitPrice: 1 }],
+        }),
+      ).resolves.toBeDefined();
+      expect(repository.addRevision).toHaveBeenCalled();
+    });
+
+    it('refuses to revise an approved VO — cost has already committed to the ledger by then', async () => {
+      repository.findById.mockResolvedValue(makeVo({ status: 'approved' }) as never);
 
       await expect(
         service.addRevision(COMPANY_ID, VO_ID, USER_ID, {
           items: [{ description: 'Revised', costCategory: 'material', quantity: 1, unitCost: 1, unitPrice: 1 }],
         }),
       ).rejects.toThrow(ForbiddenException);
+      expect(repository.addRevision).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateHeader', () => {
+    it('allows editing title/cause/scheduleImpactDays while pending_approval', async () => {
+      repository.findById.mockResolvedValue(makeVo({ status: 'pending_approval' }) as never);
+      repository.updateHeader.mockResolvedValue(makeVo({ title: 'Updated title' }) as never);
+
+      await expect(
+        service.updateHeader(COMPANY_ID, VO_ID, USER_ID, { title: 'Updated title' }),
+      ).resolves.toBeDefined();
+      expect(repository.updateHeader).toHaveBeenCalledWith(COMPANY_ID, VO_ID, {
+        title: 'Updated title',
+        cause: undefined,
+        scheduleImpactDays: undefined,
+      });
+    });
+
+    it('refuses to edit an approved VO', async () => {
+      repository.findById.mockResolvedValue(makeVo({ status: 'approved' }) as never);
+
+      await expect(
+        service.updateHeader(COMPANY_ID, VO_ID, USER_ID, { title: 'Updated title' }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(repository.updateHeader).not.toHaveBeenCalled();
     });
   });
 });

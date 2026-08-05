@@ -8,11 +8,20 @@ import { CostingService } from '../project-costing/project-costing.service';
 import { ProjectsRepository } from '../projects/projects.repository';
 import { CreateVariationOrderDto } from './dto/create-variation-order.dto';
 import { CreateVoRevisionDto } from './dto/create-vo-revision.dto';
+import { UpdateVariationOrderDto } from './dto/update-variation-order.dto';
 import { VoItemInputDto } from './dto/vo-item-input.dto';
 import { VariationOrderStatus } from './variation-order.types';
 import { VariationOrderWithDetail, VariationOrdersRepository, VoItemInput } from './variation-orders.repository';
 
-const REVISABLE_STATUSES: VariationOrderStatus[] = ['draft', 'rejected'];
+/**
+ * Also editable while pending_approval, not just draft/rejected — safe
+ * because addRevision resets status back to 'draft' itself (see
+ * VariationOrdersRepository.addRevision), so an edit mid-review doesn't
+ * silently mutate what an approver is looking at; it withdraws the VO
+ * from review and requires re-submission, same effect a manual
+ * "withdraw" action would have.
+ */
+const EDITABLE_STATUSES: VariationOrderStatus[] = ['draft', 'pending_approval', 'rejected'];
 
 function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -93,6 +102,33 @@ export class VariationOrdersService {
     return vo;
   }
 
+  /** Edit action for title/cause/scheduleImpactDays — line items/pricing go through addRevision instead. */
+  async updateHeader(companyId: string, id: string, actorUserId: string, dto: UpdateVariationOrderDto): Promise<VariationOrderWithDetail> {
+    const existing = await this.findOne(companyId, id);
+    if (!EDITABLE_STATUSES.includes(existing.status as VariationOrderStatus)) {
+      throw new ForbiddenException(
+        `A variation order in '${existing.status}' status cannot be edited. Allowed from: ${EDITABLE_STATUSES.join(', ')}.`,
+      );
+    }
+
+    const updated = await this.repository.updateHeader(companyId, id, {
+      title: dto.title,
+      cause: dto.cause,
+      scheduleImpactDays: dto.scheduleImpactDays,
+    });
+
+    await this.audit.record({
+      companyId,
+      actorUserId,
+      action: 'update',
+      entityType: 'variation_order',
+      entityId: id,
+      before: existing,
+      after: updated,
+    });
+    return updated;
+  }
+
   async list(
     companyId: string,
     query: PaginationQueryDto & { status?: string; projectId?: string },
@@ -109,9 +145,9 @@ export class VariationOrdersService {
     dto: CreateVoRevisionDto,
   ): Promise<VariationOrderWithDetail> {
     const existing = await this.findOne(companyId, id);
-    if (!REVISABLE_STATUSES.includes(existing.status as VariationOrderStatus)) {
+    if (!EDITABLE_STATUSES.includes(existing.status as VariationOrderStatus)) {
       throw new ForbiddenException(
-        `A variation order in '${existing.status}' status cannot be revised. Allowed from: ${REVISABLE_STATUSES.join(', ')}.`,
+        `A variation order in '${existing.status}' status cannot be revised. Allowed from: ${EDITABLE_STATUSES.join(', ')}.`,
       );
     }
 
