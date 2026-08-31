@@ -89,6 +89,33 @@ export class QuotationsService {
     return paginate(data, total, query);
   }
 
+  /**
+   * Draft-only, on purpose — anything past draft has been submitted,
+   * sent to a customer, or converted to a project (Project.quotationId
+   * has no onDelete, so the FK would just reject the delete outright
+   * once converted anyway). Reject/expire/cancel the customer-facing
+   * record instead of deleting once it's left draft.
+   */
+  async remove(companyId: string, id: string, actorUserId: string): Promise<void> {
+    const existing = await this.findOne(companyId, id);
+    if (existing.status !== 'draft') {
+      throw new ForbiddenException(
+        `A quotation in '${existing.status}' status can't be deleted — only a draft can. Reject or let it expire instead.`,
+      );
+    }
+
+    await this.repository.delete(companyId, id);
+
+    await this.audit.record({
+      companyId,
+      actorUserId,
+      action: 'delete',
+      entityType: 'quotation',
+      entityId: id,
+      before: existing,
+    });
+  }
+
   async updateHeader(
     companyId: string,
     id: string,

@@ -30,6 +30,7 @@ export function useQuotationActions(id: string) {
   const invalidate = () => qc.invalidateQueries({ queryKey: ['quotations'] });
   return {
     updateHeader: useMutation({ mutationFn: (input: UpdateQuotationHeaderInput) => quotationsApi.updateHeader(id, input), onSuccess: invalidate }),
+    remove: useMutation({ mutationFn: () => quotationsApi.remove(id), onSuccess: invalidate }),
     submitForApproval: useMutation({ mutationFn: () => quotationsApi.submitForApproval(id), onSuccess: invalidate }),
     approve: useMutation({ mutationFn: (comments?: string) => quotationsApi.approve(id, comments), onSuccess: invalidate }),
     reject: useMutation({ mutationFn: (comments?: string) => quotationsApi.reject(id, comments), onSuccess: invalidate }),

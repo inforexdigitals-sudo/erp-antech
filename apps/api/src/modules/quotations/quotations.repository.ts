@@ -197,6 +197,11 @@ export class QuotationsRepository {
     return result.count === 1;
   }
 
+  /** Cascades to its revisions and their items (onDelete: Cascade, db/migrations/0003) — only ever called on a draft with no downstream references (see QuotationsService.remove's status guard). */
+  async delete(companyId: string, id: string): Promise<void> {
+    await this.prisma.quotation.delete({ where: { id, companyId } });
+  }
+
   /** Returns a Map of taxCodeId -> rate percent, scoped to the tenant so a caller can't reference another company's tax code. */
   async getTaxRates(companyId: string, taxCodeIds: string[]): Promise<Map<string, number>> {
     if (taxCodeIds.length === 0) return new Map();

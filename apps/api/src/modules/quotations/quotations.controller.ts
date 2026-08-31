@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -47,6 +47,13 @@ export class QuotationsController {
     @Body() dto: UpdateQuotationDto,
   ) {
     return this.quotations.updateHeader(user.companyId, id, user.userId, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermission(PERMISSIONS.QUOTATION_DELETE)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.quotations.remove(user.companyId, id, user.userId);
   }
 
   @Post(':id/revisions')

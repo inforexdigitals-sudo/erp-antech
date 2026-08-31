@@ -26,7 +26,7 @@ function makeQuotation(overrides: Record<string, unknown> = {}) {
 
 describe('QuotationsService', () => {
   let service: QuotationsService;
-  let repository: jest.Mocked<Pick<QuotationsRepository, 'findById' | 'createWithFirstRevision' | 'updateStatus' | 'tryTransitionStatus' | 'getTaxRates' | 'list' | 'updateHeader' | 'addRevision'>>;
+  let repository: jest.Mocked<Pick<QuotationsRepository, 'findById' | 'createWithFirstRevision' | 'updateStatus' | 'tryTransitionStatus' | 'getTaxRates' | 'list' | 'updateHeader' | 'addRevision' | 'delete'>>;
   let customers: jest.Mocked<Pick<CustomersRepository, 'findById'>>;
   let projects: jest.Mocked<Pick<ProjectsRepository, 'createFromQuotation'>>;
   let approval: jest.Mocked<Pick<ApprovalService, 'start' | 'decide' | 'getOpenRequestForEntity'>>;
@@ -41,6 +41,7 @@ describe('QuotationsService', () => {
       list: jest.fn(),
       updateHeader: jest.fn(),
       addRevision: jest.fn(),
+      delete: jest.fn(),
     };
     customers = { findById: jest.fn() };
     projects = { createFromQuotation: jest.fn() };
@@ -198,5 +199,25 @@ describe('QuotationsService', () => {
       );
       expect(repository.updateStatus).toHaveBeenCalledWith(COMPANY_ID, 'quotation-1', 'converted');
     });
+  });
+
+  describe('remove', () => {
+    it('deletes a draft quotation', async () => {
+      repository.findById.mockResolvedValue(makeQuotation({ status: 'draft' }) as never);
+
+      await service.remove(COMPANY_ID, 'quotation-1', USER_ID);
+
+      expect(repository.delete).toHaveBeenCalledWith(COMPANY_ID, 'quotation-1');
+    });
+
+    it.each(['pending_approval', 'sent', 'accepted', 'converted'])(
+      'refuses to delete a %s quotation',
+      async (status) => {
+        repository.findById.mockResolvedValue(makeQuotation({ status }) as never);
+
+        await expect(service.remove(COMPANY_ID, 'quotation-1', USER_ID)).rejects.toThrow(ForbiddenException);
+        expect(repository.delete).not.toHaveBeenCalled();
+      },
+    );
   });
 });

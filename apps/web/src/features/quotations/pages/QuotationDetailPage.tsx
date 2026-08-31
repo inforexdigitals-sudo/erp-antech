@@ -21,6 +21,8 @@ import type { Quotation, QuotationItemInput, QuotationStatus } from '../api';
 /** Header changes (title/customer/valid-until) only apply while draft or pending_approval — same as the backend's EDITABLE_HEADER_STATUSES. Item/pricing revisions also work once rejected, to re-quote without touching the header. */
 const HEADER_EDITABLE_STATUSES: QuotationStatus[] = ['draft', 'pending_approval'];
 const EDITABLE_STATUSES: QuotationStatus[] = ['draft', 'pending_approval', 'rejected'];
+/** Matches the backend's remove() guard — anything past draft has been submitted, sent, or converted, so reject/expire it instead of deleting. */
+const DELETABLE_STATUSES: QuotationStatus[] = ['draft'];
 
 /** unit isn't shown as a column — not meaningful enough to warrant the space here — but the backend still requires a non-empty string, so existing values pass through unedited and new rows default to it. */
 function newItem(): QuotationItemInput {
@@ -138,6 +140,45 @@ function EditQuotationModal({ quotation, onClose }: { quotation: Quotation; onCl
   );
 }
 
+function DeleteQuotationModal({ quotation, onClose, onDeleted }: { quotation: Quotation; onClose: () => void; onDeleted: () => void }) {
+  const actions = useQuotationActions(quotation.id);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onConfirm() {
+    setError(null);
+    try {
+      await actions.remove.mutateAsync();
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete this quotation.');
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Delete ${quotation.quotationNumber}?`}>
+      <div className="flex flex-col gap-3.5">
+        <p className="text-[13px]">
+          This permanently deletes <strong>{quotation.quotationNumber}</strong> ({quotation.title}) and its revision
+          history. This can&apos;t be undone.
+        </p>
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button
+            type="button"
+            variant="primary"
+            className="border-critical bg-critical hover:border-critical hover:bg-critical/90"
+            onClick={onConfirm}
+            disabled={actions.remove.isPending}
+          >
+            {actions.remove.isPending ? 'Deleting…' : 'Delete Quotation'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function QuotationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -146,6 +187,7 @@ export function QuotationDetailPage() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const [actionError, setActionError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (isLoading) return <div className="flex justify-center py-12"><Spinner /></div>;
   if (error) return <ErrorNote>{error instanceof ApiError ? error.message : 'Could not load this quotation.'}</ErrorNote>;
@@ -182,6 +224,9 @@ export function QuotationDetailPage() {
             />
             {EDITABLE_STATUSES.includes(quotation.status) && (
               <Button onClick={() => setEditing(true)}>Edit</Button>
+            )}
+            {DELETABLE_STATUSES.includes(quotation.status) && (
+              <Button onClick={() => setDeleting(true)} className="text-critical">Delete</Button>
             )}
             {quotation.status === 'draft' && (
               <Button variant="primary" onClick={() => run(() => actions.submitForApproval.mutateAsync())} disabled={actions.submitForApproval.isPending}>
@@ -277,6 +322,13 @@ export function QuotationDetailPage() {
       </Card>
 
       {editing && <EditQuotationModal quotation={quotation} onClose={() => setEditing(false)} />}
+      {deleting && (
+        <DeleteQuotationModal
+          quotation={quotation}
+          onClose={() => setDeleting(false)}
+          onDeleted={() => navigate('/quotations')}
+        />
+      )}
     </div>
   );
 }
