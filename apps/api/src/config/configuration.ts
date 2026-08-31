@@ -1,7 +1,7 @@
 export interface AppConfig {
   nodeEnv: string;
   port: number;
-  corsOrigin: string;
+  corsOrigins: string[];
   databaseUrl: string;
   jwt: {
     accessSecret: string;
@@ -17,7 +17,9 @@ export default (): AppConfig => ({
   // Railway (and most PaaS hosts) injects PORT and expects the process to
   // bind to it; local dev uses API_PORT instead since PORT isn't set.
   port: parseInt(process.env.PORT ?? process.env.API_PORT ?? '3000', 10),
-  corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
+  // Comma-separated so a domain migration (old Railway URL + new custom
+  // domain) can be allowed side by side instead of an all-or-nothing swap.
+  corsOrigins: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',').map((origin) => origin.trim()),
   databaseUrl: requireEnv('DATABASE_URL'),
   jwt: {
     accessSecret: requireEnv('JWT_ACCESS_SECRET'),

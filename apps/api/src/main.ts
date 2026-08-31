@@ -28,7 +28,7 @@ async function bootstrap(): Promise<void> {
   app.use(helmet());
   app.use(cookieParser());
   app.enableCors({
-    origin: config.get<string>('corsOrigin'),
+    origin: config.get<string[]>('corsOrigins'),
     credentials: true, // refresh token travels as an httpOnly cookie — see modules/auth/auth.controller.ts
   });
 
