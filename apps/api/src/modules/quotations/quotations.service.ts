@@ -90,18 +90,33 @@ export class QuotationsService {
   }
 
   /**
-   * Draft-only, on purpose — anything past draft has been submitted,
-   * sent to a customer, or converted to a project (Project.quotationId
-   * has no onDelete, so the FK would just reject the delete outright
-   * once converted anyway). Reject/expire/cancel the customer-facing
-   * record instead of deleting once it's left draft.
+   * Draft and converted are the only deletable statuses. Anything else
+   * (submitted, sent, accepted, rejected, expired) represents a live
+   * customer-facing offer with no project or downstream financial
+   * records behind it yet — reject/expire it instead of deleting.
+   *
+   * Converted is different and far more destructive: the quotation
+   * became a real Project, and everything recorded against that
+   * project since (POs, invoices, claims, variation orders, cost
+   * transactions, timesheet allocations, material requests) goes with
+   * it — see ProjectsRepository.deleteCascade. Deliberately
+   * unconditional, no "only if empty" guard — this was an explicit,
+   * informed choice (not the default), since the natural safer default
+   * would refuse once real work exists against the project.
    */
   async remove(companyId: string, id: string, actorUserId: string): Promise<void> {
     const existing = await this.findOne(companyId, id);
-    if (existing.status !== 'draft') {
+    if (existing.status !== 'draft' && existing.status !== 'converted') {
       throw new ForbiddenException(
-        `A quotation in '${existing.status}' status can't be deleted — only a draft can. Reject or let it expire instead.`,
+        `A quotation in '${existing.status}' status can't be deleted. Reject or let it expire instead.`,
       );
+    }
+
+    if (existing.status === 'converted') {
+      const project = await this.projects.findByQuotationId(companyId, id);
+      if (project) {
+        await this.projects.deleteCascade(companyId, project.id);
+      }
     }
 
     await this.repository.delete(companyId, id);

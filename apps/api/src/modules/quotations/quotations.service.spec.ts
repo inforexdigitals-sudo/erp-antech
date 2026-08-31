@@ -28,7 +28,7 @@ describe('QuotationsService', () => {
   let service: QuotationsService;
   let repository: jest.Mocked<Pick<QuotationsRepository, 'findById' | 'createWithFirstRevision' | 'updateStatus' | 'tryTransitionStatus' | 'getTaxRates' | 'list' | 'updateHeader' | 'addRevision' | 'delete'>>;
   let customers: jest.Mocked<Pick<CustomersRepository, 'findById'>>;
-  let projects: jest.Mocked<Pick<ProjectsRepository, 'createFromQuotation'>>;
+  let projects: jest.Mocked<Pick<ProjectsRepository, 'createFromQuotation' | 'findByQuotationId' | 'deleteCascade'>>;
   let approval: jest.Mocked<Pick<ApprovalService, 'start' | 'decide' | 'getOpenRequestForEntity'>>;
 
   beforeEach(() => {
@@ -44,7 +44,7 @@ describe('QuotationsService', () => {
       delete: jest.fn(),
     };
     customers = { findById: jest.fn() };
-    projects = { createFromQuotation: jest.fn() };
+    projects = { createFromQuotation: jest.fn(), findByQuotationId: jest.fn(), deleteCascade: jest.fn() };
     approval = {
       start: jest.fn(),
       decide: jest.fn(),
@@ -202,15 +202,17 @@ describe('QuotationsService', () => {
   });
 
   describe('remove', () => {
-    it('deletes a draft quotation', async () => {
+    it('deletes a draft quotation without touching any project', async () => {
       repository.findById.mockResolvedValue(makeQuotation({ status: 'draft' }) as never);
 
       await service.remove(COMPANY_ID, 'quotation-1', USER_ID);
 
       expect(repository.delete).toHaveBeenCalledWith(COMPANY_ID, 'quotation-1');
+      expect(projects.findByQuotationId).not.toHaveBeenCalled();
+      expect(projects.deleteCascade).not.toHaveBeenCalled();
     });
 
-    it.each(['pending_approval', 'sent', 'accepted', 'converted'])(
+    it.each(['pending_approval', 'sent', 'accepted', 'rejected', 'expired'])(
       'refuses to delete a %s quotation',
       async (status) => {
         repository.findById.mockResolvedValue(makeQuotation({ status }) as never);
@@ -219,5 +221,26 @@ describe('QuotationsService', () => {
         expect(repository.delete).not.toHaveBeenCalled();
       },
     );
+
+    it('deletes a converted quotation by tearing down its project first', async () => {
+      repository.findById.mockResolvedValue(makeQuotation({ status: 'converted' }) as never);
+      projects.findByQuotationId.mockResolvedValue({ id: 'project-1' } as never);
+
+      await service.remove(COMPANY_ID, 'quotation-1', USER_ID);
+
+      expect(projects.findByQuotationId).toHaveBeenCalledWith(COMPANY_ID, 'quotation-1');
+      expect(projects.deleteCascade).toHaveBeenCalledWith(COMPANY_ID, 'project-1');
+      expect(repository.delete).toHaveBeenCalledWith(COMPANY_ID, 'quotation-1');
+    });
+
+    it('deletes a converted quotation with no linked project found (already removed some other way)', async () => {
+      repository.findById.mockResolvedValue(makeQuotation({ status: 'converted' }) as never);
+      projects.findByQuotationId.mockResolvedValue(null);
+
+      await service.remove(COMPANY_ID, 'quotation-1', USER_ID);
+
+      expect(projects.deleteCascade).not.toHaveBeenCalled();
+      expect(repository.delete).toHaveBeenCalledWith(COMPANY_ID, 'quotation-1');
+    });
   });
 });

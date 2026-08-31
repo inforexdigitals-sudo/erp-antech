@@ -60,6 +60,51 @@ export class ProjectsRepository {
     return this.prisma.project.findFirst({ where: { id, companyId } });
   }
 
+  /** Scoped lookup for QuotationsService.remove — a Quotation converts to at most one Project (Project.quotationId is @unique). */
+  async findByQuotationId(companyId: string, quotationId: string): Promise<Project | null> {
+    return this.prisma.project.findFirst({ where: { quotationId, companyId } });
+  }
+
+  /**
+   * Tears down a project and every real-money/real-work record attached
+   * to it — used only when a converted quotation is deleted with
+   * "delete it all" explicitly chosen (QuotationsService.remove).
+   * Irreversible; there is no soft-delete or undo here.
+   *
+   * Several children have a required, non-cascading FK to Project
+   * (db/migrations don't mark them onDelete: Cascade — CostTransaction,
+   * PurchaseOrder, VariationOrder, TimesheetAllocation, Invoice, Claim,
+   * MaterialRequest), so a plain `project.delete()` would just fail
+   * with a foreign-key violation. Deleted here explicitly, in an order
+   * that respects every remaining constraint:
+   *  - PurchaseOrder/VariationOrder/Invoice/Claim/MaterialRequest each
+   *    cascade to their own children (items, deliveries, payments,
+   *    revisions, retention records) automatically once the parent row
+   *    is deleted — no need to touch those tables directly.
+   *  - RetentionRecord.claimId cascades from Claim, so deleting Claims
+   *    removes it even though RetentionRecord.projectId itself doesn't.
+   *  - PurchaseOrders are deleted before MaterialRequests, since a PO
+   *    can reference one.
+   *  - Everything else hanging off Project (team members, milestones,
+   *    tasks, site reports + their photos/documents, issues, budget)
+   *  is already onDelete: Cascade and needs no explicit handling —
+   *    removed by the final `project.delete()` below.
+   * ImportedFile/Rfq's optional projectId is onDelete: SetNull, so
+   * those rows survive with the reference cleared, not deleted.
+   */
+  async deleteCascade(companyId: string, projectId: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.costTransaction.deleteMany({ where: { projectId, companyId } }),
+      this.prisma.purchaseOrder.deleteMany({ where: { projectId, companyId } }),
+      this.prisma.variationOrder.deleteMany({ where: { projectId, companyId } }),
+      this.prisma.timesheetAllocation.deleteMany({ where: { projectId } }),
+      this.prisma.invoice.deleteMany({ where: { projectId, companyId } }),
+      this.prisma.claim.deleteMany({ where: { projectId, companyId } }),
+      this.prisma.materialRequest.deleteMany({ where: { projectId, companyId } }),
+      this.prisma.project.delete({ where: { id: projectId, companyId } }),
+    ]);
+  }
+
   async findDetailById(companyId: string, id: string): Promise<ProjectWithDetail | null> {
     return this.prisma.project.findFirst({ where: { id, companyId }, include: projectDetailInclude });
   }
