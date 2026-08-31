@@ -13,3 +13,7 @@ export function verify2fa(challengeToken: string, code: string): Promise<{ acces
 export function logout(): Promise<void> {
   return api.post<void>('/auth/logout', undefined, { skipAuthRetry: true });
 }
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return api.post<void>('/auth/change-password', { currentPassword, newPassword });
+}

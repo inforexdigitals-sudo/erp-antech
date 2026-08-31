@@ -2,8 +2,11 @@ import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res, UnauthorizedExc
 import { ConfigService } from '@nestjs/config';
 import { ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { AuthenticatedUser } from '../../common/types/auth.types';
 import { AuthService, TokenPair } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { Verify2faDto } from './dto/verify-2fa.dto';
 
@@ -59,6 +62,13 @@ export class AuthController {
     const tokens = await this.auth.refresh(rawToken);
     this.setRefreshCookie(res, tokens);
     return { accessToken: tokens.accessToken };
+  }
+
+  /** Not @Public — requires being logged in, unlike login/refresh/logout which authenticate via the cookie itself. */
+  @Post('change-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async changePassword(@CurrentUser() user: AuthenticatedUser, @Body() dto: ChangePasswordDto): Promise<void> {
+    await this.auth.changePassword(user.userId, user.companyId, dto.currentPassword, dto.newPassword);
   }
 
   // Public: logout only needs the refresh cookie, not a still-valid

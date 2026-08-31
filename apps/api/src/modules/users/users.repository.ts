@@ -51,6 +51,10 @@ export class UsersRepository {
     await this.prisma.user.update({ where: { id: userId }, data: { lastLoginAt: when } });
   }
 
+  async updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  }
+
   /** Backs `GET /users` — a picker list (project manager, task assignee, ...) for every other module's forms, not User Management (module 16, still not built). */
   async findAllForCompany(companyId: string): Promise<Array<Pick<User, 'id' | 'fullName' | 'jobTitle'>>> {
     return this.prisma.user.findMany({

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { bootstrapSession } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { getMe } from '../users/api';
-import { login, logout, verify2fa } from './api';
+import { changePassword, login, logout, verify2fa } from './api';
 
 async function establishSession(accessToken: string): Promise<void> {
   useAuthStore.getState().setAccessToken(accessToken);
@@ -34,6 +34,22 @@ export function useLogout() {
   return useMutation({
     mutationFn: logout,
     onSettled: () => clear(),
+  });
+}
+
+/**
+ * On success, every refresh token for this user was just revoked
+ * server-side (see AuthService.changePassword) — clearing local session
+ * state here signs this tab out too, so the caller re-authenticates
+ * with the new password instead of limping along on a soon-to-fail
+ * silent refresh.
+ */
+export function useChangePassword() {
+  const clear = useAuthStore((s) => s.clear);
+  return useMutation({
+    mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
+      changePassword(currentPassword, newPassword),
+    onSuccess: () => clear(),
   });
 }
 

@@ -74,6 +74,14 @@ export class AuthRepository {
     });
   }
 
+  /** Called on password change — every other device/session's refresh token is invalidated, same as changing a password on most real accounts. */
+  async revokeAllForUser(userId: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
   async recordLoginHistory(data: RecordLoginHistoryData): Promise<void> {
     await this.prisma.loginHistory.create({ data });
   }

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -153,6 +153,39 @@ export class AuthService {
 
   async logout(rawToken: string): Promise<void> {
     await this.authRepository.revokeTokenByHash(hashToken(rawToken));
+  }
+
+  /**
+   * Self-service change, not an admin reset (User Management's create
+   * flow sets an initial password directly) — requires the current one,
+   * matching how login validates it. Revokes every refresh token for
+   * this user afterward, the same way changing a password on most real
+   * accounts signs every other device out; the caller's own session
+   * logs out and re-authenticates with the new password rather than
+   * limping along on its still-valid access token until it expires.
+   */
+  async changePassword(userId: string, companyId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.users.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('Account no longer exists.');
+    }
+
+    const currentOk = await argon2.verify(user.passwordHash, currentPassword).catch(() => false);
+    if (!currentOk) {
+      throw new BadRequestException('Current password is incorrect.');
+    }
+
+    const passwordHash = await argon2.hash(newPassword);
+    await this.users.updatePasswordHash(userId, passwordHash);
+    await this.authRepository.revokeAllForUser(userId);
+
+    await this.audit.record({
+      companyId,
+      actorUserId: userId,
+      action: 'change_password',
+      entityType: 'user',
+      entityId: userId,
+    });
   }
 
   private async issueTokenPair(userId: string, companyId: string): Promise<TokenPair> {

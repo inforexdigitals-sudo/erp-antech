@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Spinner } from '../components/ui/Feedback';
-import { useLogout } from '../features/auth/hooks';
+import { Button } from '../components/ui/Button';
+import { ErrorNote, Spinner } from '../components/ui/Feedback';
+import { Field, Input } from '../components/ui/Input';
+import { Modal } from '../components/ui/Modal';
+import { useChangePassword, useLogout } from '../features/auth/hooks';
+import { ApiError } from '../lib/api-client';
 import { useAuthStore } from '../stores/auth-store';
 import { useThemeStore } from '../stores/theme-store';
 import { cn } from '../lib/utils';
@@ -12,8 +16,79 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const changePassword = useChangePassword();
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (newPassword !== confirmPassword) {
+      setError('New password and confirmation do not match.');
+      return;
+    }
+    try {
+      await changePassword.mutateAsync({ currentPassword, newPassword });
+      // onSuccess already cleared the session — ProtectedRoute takes it from here.
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not change your password.');
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Change Password">
+      <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
+        <Field label="Current Password" htmlFor="cp-current">
+          <Input
+            id="cp-current"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </Field>
+        <Field label="New Password" htmlFor="cp-new">
+          <Input
+            id="cp-new"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="At least 8 characters"
+          />
+        </Field>
+        <Field label="Confirm New Password" htmlFor="cp-confirm">
+          <Input
+            id="cp-confirm"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+        </Field>
+        <p className="text-xs text-muted">You&apos;ll be signed out here and everywhere else, and need to sign back in with your new password.</p>
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" disabled={changePassword.isPending}>
+            {changePassword.isPending ? 'Changing…' : 'Change Password'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export function AppShell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const profile = useAuthStore((s) => s.profile);
   const permissions = useAuthStore((s) => s.permissions);
   const { theme, toggle: toggleTheme } = useThemeStore();
@@ -83,6 +158,17 @@ export function AppShell() {
               <div className="truncate text-[11px] text-muted">{profile?.roles.join(', ') || profile?.jobTitle}</div>
             </div>
             <button
+              onClick={() => setChangingPassword(true)}
+              className="rounded p-1 text-muted hover:bg-surface-2 hover:text-ink"
+              title="Change password"
+              aria-label="Change password"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-4 w-4">
+                <circle cx="8" cy="15.5" r="3.5" />
+                <path d="M10.5 13 18 5.5M18 5.5 21 8.5M18 5.5l2 2" />
+              </svg>
+            </button>
+            <button
               onClick={() => logout.mutate()}
               className="rounded p-1 text-muted hover:bg-surface-2 hover:text-ink"
               title="Log out"
@@ -97,6 +183,8 @@ export function AppShell() {
           </div>
         </div>
       </aside>
+
+      {changingPassword && <ChangePasswordModal onClose={() => setChangingPassword(false)} />}
 
       {mobileNavOpen && (
         <button

@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -26,6 +26,7 @@ describe('AuthService', () => {
     linkReplacementToken: jest.Mock;
     revokeTokenFamily: jest.Mock;
     revokeTokenByHash: jest.Mock;
+    revokeAllForUser: jest.Mock;
     recordLoginHistory: jest.Mock;
   };
   let users: {
@@ -33,6 +34,7 @@ describe('AuthService', () => {
     findById: jest.Mock;
     getEffectivePermissionCodes: jest.Mock;
     updateLastLoginAt: jest.Mock;
+    updatePasswordHash: jest.Mock;
   };
   let passwordHash: string;
 
@@ -48,6 +50,7 @@ describe('AuthService', () => {
       linkReplacementToken: jest.fn(),
       revokeTokenFamily: jest.fn(),
       revokeTokenByHash: jest.fn(),
+      revokeAllForUser: jest.fn(),
       recordLoginHistory: jest.fn(),
     };
     users = {
@@ -55,6 +58,7 @@ describe('AuthService', () => {
       findById: jest.fn(),
       getEffectivePermissionCodes: jest.fn().mockResolvedValue(['quotation.view']),
       updateLastLoginAt: jest.fn(),
+      updatePasswordHash: jest.fn(),
     };
 
     const config = new ConfigService({
@@ -188,6 +192,27 @@ describe('AuthService', () => {
       await expect(authService.refresh('raced-token')).rejects.toThrow(UnauthorizedException);
       expect(authRepository.createRefreshToken).not.toHaveBeenCalled();
       expect(authRepository.linkReplacementToken).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('changePassword', () => {
+    it('rejects the wrong current password without touching the stored hash or any session', async () => {
+      users.findById.mockResolvedValue({ ...TEST_USER, passwordHash });
+
+      await expect(
+        authService.changePassword(TEST_USER.id, TEST_USER.companyId, 'wrong-current-password', 'a-new-password'),
+      ).rejects.toThrow(BadRequestException);
+      expect(users.updatePasswordHash).not.toHaveBeenCalled();
+      expect(authRepository.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
+    it('updates the hash and revokes every refresh token for this user on a correct current password', async () => {
+      users.findById.mockResolvedValue({ ...TEST_USER, passwordHash });
+
+      await authService.changePassword(TEST_USER.id, TEST_USER.companyId, 'correct-horse-battery-staple', 'a-new-password');
+
+      expect(users.updatePasswordHash).toHaveBeenCalledWith(TEST_USER.id, expect.any(String));
+      expect(authRepository.revokeAllForUser).toHaveBeenCalledWith(TEST_USER.id);
     });
   });
 });
