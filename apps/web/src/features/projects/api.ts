@@ -80,6 +80,7 @@ export const projectsApi = {
   create: (input: CreateProjectInput) => api.post<Project>('/projects', input),
   update: (id: string, input: Partial<CreateProjectInput> & { status?: ProjectStatus; actualEndDate?: string }) =>
     api.patch<Project>(`/projects/${id}`, input),
+  remove: (id: string) => api.delete<void>(`/projects/${id}`),
 
   addTeamMember: (id: string, input: { userId: string; roleOnProject?: string }) =>
     api.post(`/projects/${id}/team-members`, input),

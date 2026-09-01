@@ -59,6 +59,13 @@ export class ProjectsController {
     return this.projects.update(user.companyId, id, user.userId, dto);
   }
 
+  @Delete(':id')
+  @RequirePermission(PERMISSIONS.PROJECT_DELETE)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.projects.remove(user.companyId, id, user.userId);
+  }
+
   @Post(':id/team-members')
   @RequirePermission(PERMISSIONS.PROJECT_EDIT)
   addTeamMember(

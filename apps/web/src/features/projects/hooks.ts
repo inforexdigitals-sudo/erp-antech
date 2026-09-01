@@ -45,6 +45,10 @@ export function useProjectMutations(id: string) {
       mutationFn: (input: Partial<CreateProjectInput> & { status?: ProjectStatus }) => projectsApi.update(id, input),
       onSuccess: invalidateProject,
     }),
+    remove: useMutation({
+      mutationFn: () => projectsApi.remove(id),
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+    }),
     addTeamMember: useMutation({
       mutationFn: (input: { userId: string; roleOnProject?: string }) => projectsApi.addTeamMember(id, input),
       onSuccess: invalidateProject,

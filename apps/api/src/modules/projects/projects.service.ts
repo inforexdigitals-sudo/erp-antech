@@ -56,6 +56,29 @@ export class ProjectsService {
     return paginate(data, total, query);
   }
 
+  /**
+   * Unconditional, same as QuotationsService.remove's converted path
+   * (which calls the same ProjectsRepository.deleteCascade) — no
+   * "only if empty" guard on status or on what's been recorded against
+   * it. Deletes every PO, invoice, claim, variation order, cost
+   * transaction, timesheet allocation, and material request along with
+   * it; reverts the originating quotation to 'accepted' if there is
+   * one, rather than leaving it claiming 'converted' with nothing to
+   * show for it.
+   */
+  async remove(companyId: string, id: string, actorUserId: string): Promise<void> {
+    const existing = await this.findOne(companyId, id);
+    await this.repository.deleteCascade(companyId, id);
+    await this.audit.record({
+      companyId,
+      actorUserId,
+      action: 'delete',
+      entityType: 'project',
+      entityId: id,
+      before: existing,
+    });
+  }
+
   async update(companyId: string, id: string, actorUserId: string, dto: UpdateProjectDto): Promise<ProjectWithDetail> {
     const existing = await this.findOne(companyId, id);
 

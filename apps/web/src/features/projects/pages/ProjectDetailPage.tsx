@@ -1,10 +1,11 @@
 import { FormEvent, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '../../../components/PageHeader';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
 import { EmptyNote, ErrorNote, Spinner } from '../../../components/ui/Feedback';
 import { Field, Input } from '../../../components/ui/Input';
+import { Modal } from '../../../components/ui/Modal';
 import { Select, Textarea } from '../../../components/ui/Select';
 import { StatusPill } from '../../../components/ui/StatusPill';
 import { Tabs } from '../../../components/ui/Tabs';
@@ -15,7 +16,7 @@ import { ProjectCostingPanel } from '../../project-costing/ProjectCostingPanel';
 import { useQuotation } from '../../quotations/hooks';
 import { usePickerUsers } from '../../shared/hooks';
 import { useProject, useProjectIssues, useProjectMutations, useProjectSiteReports, useProjectTasks } from '../hooks';
-import type { IssueSeverity, IssueStatus, MilestoneStatus, TaskStatus } from '../api';
+import type { IssueSeverity, IssueStatus, MilestoneStatus, Project, TaskStatus } from '../api';
 
 const MILESTONE_STATUSES: MilestoneStatus[] = ['pending', 'in_progress', 'completed', 'delayed'];
 const TASK_STATUSES: TaskStatus[] = ['todo', 'in_progress', 'done', 'blocked'];
@@ -367,10 +368,59 @@ function QuotationTab({ quotationId }: { quotationId: string }) {
   );
 }
 
+function DeleteProjectModal({ project, onClose, onDeleted }: { project: Project; onClose: () => void; onDeleted: () => void }) {
+  const { remove } = useProjectMutations(project.id);
+  const [confirmText, setConfirmText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const canConfirm = confirmText === project.projectNumber;
+
+  async function onConfirm() {
+    setError(null);
+    try {
+      await remove.mutateAsync();
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete this project.');
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Delete ${project.projectNumber}?`}>
+      <div className="flex flex-col gap-3.5">
+        <p className="text-[13px]">
+          This permanently deletes <strong>{project.projectNumber}</strong> ({project.name}) and{' '}
+          <strong>every purchase order, invoice, claim, variation order, cost record, and timesheet allocation</strong>{' '}
+          recorded against it.
+          {project.quotationId && ' The quotation it was converted from reverts to accepted, not deleted.'} This is
+          permanent — there is no undo.
+        </p>
+        <Field label={`Type "${project.projectNumber}" to confirm`} htmlFor="dp-confirm">
+          <Input id="dp-confirm" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoComplete="off" />
+        </Field>
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button
+            type="button"
+            variant="primary"
+            className="border-critical bg-critical hover:border-critical hover:bg-critical/90"
+            onClick={onConfirm}
+            disabled={remove.isPending || !canConfirm}
+          >
+            {remove.isPending ? 'Deleting…' : 'Delete Project'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data: project, isLoading, error } = useProject(id);
   const [tab, setTab] = useState('overview');
+  const [deleting, setDeleting] = useState(false);
 
   if (isLoading) return <div className="flex justify-center py-12"><Spinner /></div>;
   if (error) return <ErrorNote>{error instanceof ApiError ? error.message : 'Could not load this project.'}</ErrorNote>;
@@ -382,6 +432,7 @@ export function ProjectDetailPage() {
         eyebrow="Delivery"
         title={<span className="flex items-center gap-2.5">{project.name}<StatusPill domain="project" status={project.status} /></span>}
         subtitle={`${project.projectNumber} · ${project.customer.name}`}
+        actions={<Button className="text-critical" onClick={() => setDeleting(true)}>Delete</Button>}
       />
       <Tabs
         active={tab}
@@ -405,6 +456,10 @@ export function ProjectDetailPage() {
       {tab === 'issues' && <IssuesTab projectId={id} />}
       {tab === 'costing' && <ProjectCostingPanel projectId={id} hasQuotation={!!project.quotationId} />}
       {tab === 'quotation' && project.quotationId && <QuotationTab quotationId={project.quotationId} />}
+
+      {deleting && (
+        <DeleteProjectModal project={project} onClose={() => setDeleting(false)} onDeleted={() => navigate('/projects')} />
+      )}
     </div>
   );
 }

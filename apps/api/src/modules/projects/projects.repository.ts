@@ -91,9 +91,26 @@ export class ProjectsRepository {
    *    removed by the final `project.delete()` below.
    * ImportedFile/Rfq's optional projectId is onDelete: SetNull, so
    * those rows survive with the reference cleared, not deleted.
+   *
+   * Also called directly for a standalone "delete this project"
+   * (ProjectsService.remove), not just via a converted quotation's
+   * delete — so if this project came from a quotation, that quotation
+   * is reverted to 'accepted' (the exact precondition
+   * QuotationsService.convertToProject required) rather than left
+   * behind claiming 'converted' with no project to show for it. A
+   * harmless no-op when the caller is about to delete that same
+   * quotation right after (QuotationsService.remove's converted path).
    */
   async deleteCascade(companyId: string, projectId: string): Promise<void> {
+    const project = await this.prisma.project.findFirstOrThrow({
+      where: { id: projectId, companyId },
+      select: { quotationId: true },
+    });
+
     await this.prisma.$transaction([
+      ...(project.quotationId
+        ? [this.prisma.quotation.updateMany({ where: { id: project.quotationId, companyId }, data: { status: 'accepted' } })]
+        : []),
       this.prisma.costTransaction.deleteMany({ where: { projectId, companyId } }),
       this.prisma.purchaseOrder.deleteMany({ where: { projectId, companyId } }),
       this.prisma.variationOrder.deleteMany({ where: { projectId, companyId } }),

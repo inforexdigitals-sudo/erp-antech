@@ -28,6 +28,7 @@ describe('ProjectsService', () => {
       | 'findIssueById'
       | 'updateIssue'
       | 'createIssue'
+      | 'deleteCascade'
     >
   >;
   let customers: jest.Mocked<Pick<CustomersRepository, 'findById'>>;
@@ -45,6 +46,7 @@ describe('ProjectsService', () => {
       findIssueById: jest.fn(),
       updateIssue: jest.fn(),
       createIssue: jest.fn(),
+      deleteCascade: jest.fn(),
     };
     customers = { findById: jest.fn() };
 
@@ -70,6 +72,22 @@ describe('ProjectsService', () => {
     it('throws NotFoundException for a project outside the tenant', async () => {
       repository.findDetailById.mockResolvedValue(null);
       await expect(service.findOne(COMPANY_ID, 'nope')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('remove', () => {
+    it('404s for a project outside the tenant instead of attempting the cascade', async () => {
+      repository.findDetailById.mockResolvedValue(null);
+      await expect(service.remove(COMPANY_ID, 'nope', USER_ID)).rejects.toThrow(NotFoundException);
+      expect(repository.deleteCascade).not.toHaveBeenCalled();
+    });
+
+    it('deletes the project via the same cascade regardless of status', async () => {
+      repository.findDetailById.mockResolvedValue(makeProject({ status: 'active' }) as never);
+
+      await service.remove(COMPANY_ID, PROJECT_ID, USER_ID);
+
+      expect(repository.deleteCascade).toHaveBeenCalledWith(COMPANY_ID, PROJECT_ID);
     });
   });
 
