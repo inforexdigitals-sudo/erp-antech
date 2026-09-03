@@ -22,7 +22,7 @@ export function drawTable<T>(
   startY: number,
   columns: PdfTableColumn[],
   rows: T[],
-  getRow: (row: T) => string[],
+  getRow: (row: T, index: number) => string[],
 ): number {
   const rowHeight = 20;
   const bottomLimit = doc.page.height - doc.page.margins.bottom;
@@ -48,7 +48,8 @@ export function drawTable<T>(
   y = drawHeader(y);
 
   doc.font('Helvetica').fontSize(8).fillColor('#000000');
-  for (const row of rows) {
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex];
     if (y + rowHeight > bottomLimit) {
       doc.addPage();
       y = doc.page.margins.top;
@@ -56,7 +57,7 @@ export function drawTable<T>(
       doc.font('Helvetica').fontSize(8).fillColor('#000000');
     }
     let x = startX;
-    const cells = getRow(row);
+    const cells = getRow(row, rowIndex);
     for (let i = 0; i < columns.length; i++) {
       doc.text(cells[i] ?? '', x, y, { width: columns[i].width, align: columns[i].align ?? 'left' });
       x += columns[i].width;

@@ -65,14 +65,16 @@ export class PaymentCertificatePdfService {
           left,
           y,
           [
-            { header: 'Description', width: pageWidth * 0.34 },
+            { header: 'Sl. No.', width: pageWidth * 0.06, align: 'center' },
+            { header: 'Description', width: pageWidth * 0.28 },
             { header: 'Previous %', width: pageWidth * 0.16, align: 'right' },
             { header: 'This Claim %', width: pageWidth * 0.16, align: 'right' },
             { header: 'Cumulative %', width: pageWidth * 0.16, align: 'right' },
             { header: 'Amount', width: pageWidth * 0.18, align: 'right' },
           ],
           claim.items,
-          (item) => [
+          (item, i) => [
+            String(i + 1),
             item.description,
             `${Number(item.previousPercent).toFixed(1)}%`,
             `${Number(item.currentPercent).toFixed(1)}%`,

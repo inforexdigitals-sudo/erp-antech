@@ -67,13 +67,15 @@ export class InvoicePdfService {
           left,
           y,
           [
-            { header: 'Description', width: pageWidth * 0.46 },
+            { header: 'Sl. No.', width: pageWidth * 0.06, align: 'center' },
+            { header: 'Description', width: pageWidth * 0.40 },
             { header: 'This Claim %', width: pageWidth * 0.18, align: 'right' },
             { header: 'Cumulative %', width: pageWidth * 0.18, align: 'right' },
             { header: 'Amount', width: pageWidth * 0.18, align: 'right' },
           ],
           claim.items,
-          (item) => [
+          (item, i) => [
+            String(i + 1),
             item.description,
             `${Number(item.currentPercent).toFixed(1)}%`,
             `${Number(item.cumulativePercent).toFixed(1)}%`,

@@ -63,14 +63,16 @@ export class QuotationPdfService {
         left,
         y,
         [
-          { header: 'Description', width: pageWidth * 0.4 },
+          { header: 'Sl. No.', width: pageWidth * 0.06, align: 'center' },
+          { header: 'Description', width: pageWidth * 0.34 },
           { header: 'Category', width: pageWidth * 0.15 },
           { header: 'Qty', width: pageWidth * 0.12, align: 'right' },
           { header: 'Unit Price', width: pageWidth * 0.16, align: 'right' },
           { header: 'Line Total', width: pageWidth * 0.17, align: 'right' },
         ],
         rev.items,
-        (item) => [
+        (item, i) => [
+          String(i + 1),
           item.description,
           item.category,
           `${Number(item.quantity)} ${item.unit}`,

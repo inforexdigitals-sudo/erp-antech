@@ -58,14 +58,16 @@ export class PurchaseOrderPdfService {
         left,
         y,
         [
-          { header: 'Description', width: pageWidth * 0.36 },
+          { header: 'Sl. No.', width: pageWidth * 0.06, align: 'center' },
+          { header: 'Description', width: pageWidth * 0.30 },
           { header: 'Category', width: pageWidth * 0.14 },
           { header: 'Qty', width: pageWidth * 0.14, align: 'right' },
           { header: 'Unit Price', width: pageWidth * 0.18, align: 'right' },
           { header: 'Line Total', width: pageWidth * 0.18, align: 'right' },
         ],
         po.items,
-        (item) => [
+        (item, i) => [
+          String(i + 1),
           item.description,
           item.costCategory,
           `${Number(item.quantity)} ${item.unit}`,
