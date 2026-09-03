@@ -77,7 +77,8 @@ const MIN_NUMBER_TOKENS = 2;
  * deliberately loose — it's a starting point for the review table, not a
  * source of truth (see ImportSuggestions.suggestedItems doc comment).
  */
-function findLineItems(text: string): ImportedLineItem[] {
+/** Exported so QuotationsService.importItems can reuse this same heuristic for a direct PDF-into-a-quotation import, not just full project digitization. */
+export function findLineItems(text: string): ImportedLineItem[] {
   const items: ImportedLineItem[] = [];
 
   for (const rawLine of text.split('\n')) {

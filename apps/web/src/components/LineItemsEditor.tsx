@@ -2,6 +2,7 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Td, Th, Tr } from './ui/Table';
+import { cn } from '../lib/utils';
 
 export interface LineItemColumn<T> {
   key: keyof T;
@@ -27,12 +28,15 @@ export function LineItemsEditor<T extends object>({
   columns,
   newRow,
   minRows = 1,
+  invalidRows,
 }: {
   items: T[];
   onChange: (items: T[]) => void;
   columns: LineItemColumn<T>[];
   newRow: () => T;
   minRows?: number;
+  /** Row indices to flag (e.g. a blank description) — highlighted so the caller's own validation message points somewhere visible, instead of a submit just failing silently or surfacing a raw backend error. */
+  invalidRows?: Set<number>;
 }) {
   function updateRow(index: number, key: keyof T, value: unknown) {
     const next = items.slice();
@@ -57,7 +61,7 @@ export function LineItemsEditor<T extends object>({
         </thead>
         <tbody>
           {items.map((row, index) => (
-            <Tr key={index}>
+            <Tr key={index} className={cn(invalidRows?.has(index) && 'bg-critical/5 outline outline-1 -outline-offset-1 outline-critical/40')}>
               {columns.map((col) => (
                 <Td key={String(col.key)} style={col.width ? { width: col.width } : undefined}>
                   {col.type === 'select' ? (

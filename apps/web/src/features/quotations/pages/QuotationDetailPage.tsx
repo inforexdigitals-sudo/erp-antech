@@ -71,11 +71,25 @@ function EditQuotationModal({ quotation, onClose }: { quotation: Quotation; onCl
       : [newItem()],
   );
   const [error, setError] = useState<string | null>(null);
+  const [invalidRows, setInvalidRows] = useState<Set<number>>(new Set());
   const submitting = actions.updateHeader.isPending || addRevision.isPending;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const blankRows = new Set(items.flatMap((item, i) => (item.description.trim() ? [] : [i])));
+    if (blankRows.size > 0) {
+      setInvalidRows(blankRows);
+      setError(
+        blankRows.size === 1
+          ? `Line ${[...blankRows][0] + 1} needs a description.`
+          : `Lines ${[...blankRows].map((i) => i + 1).join(', ')} need a description.`,
+      );
+      return;
+    }
+    setInvalidRows(new Set());
+
     try {
       if (canEditHeader) {
         await actions.updateHeader.mutateAsync({ title, customerId, validUntil: validUntil || undefined });
@@ -116,7 +130,7 @@ function EditQuotationModal({ quotation, onClose }: { quotation: Quotation; onCl
 
         <div className="flex flex-col gap-3">
           <h3 className="text-[13.5px] font-semibold">Line Items</h3>
-          <LineItemsEditor items={items} onChange={setItems} columns={ITEM_COLUMNS} newRow={newItem} />
+          <LineItemsEditor items={items} onChange={setItems} columns={ITEM_COLUMNS} newRow={newItem} invalidRows={invalidRows} />
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
             <Field label="Discount Amount" htmlFor="eq-discount">
               <Input

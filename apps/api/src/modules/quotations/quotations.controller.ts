@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -37,6 +38,14 @@ export class QuotationsController {
   @RequirePermission(PERMISSIONS.QUOTATION_CREATE)
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateQuotationDto) {
     return this.quotations.create(user.companyId, user.userId, dto);
+  }
+
+  /** Parses an uploaded BOQ/vendor quote (PDF or Excel) into line items for the New Quotation form to prefill — nothing is saved until the quotation itself is submitted. */
+  @Post('import-items')
+  @RequirePermission(PERMISSIONS.QUOTATION_CREATE)
+  @UseInterceptors(FileInterceptor('file'))
+  importItems(@UploadedFile() file?: Express.Multer.File) {
+    return this.quotations.importItems(file);
   }
 
   @Patch(':id')

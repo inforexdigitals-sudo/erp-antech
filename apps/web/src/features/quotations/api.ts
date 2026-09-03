@@ -1,4 +1,4 @@
-import { api, toQueryString, type PaginatedResult } from '../../lib/api-client';
+import { api, toQueryString, uploadFile, type PaginatedResult } from '../../lib/api-client';
 import type { CostCategory } from '../shared/constants';
 
 export type QuotationStatus =
@@ -62,6 +62,16 @@ export interface QuotationItemInput {
   sortOrder?: number;
 }
 
+/** What POST /quotations/import-items hands back — plain data to prefill the line-items table with, never saved until the quotation itself is submitted. */
+export interface QuotationImportedItem {
+  description: string;
+  category: CostCategory;
+  unit: string;
+  quantity: number;
+  unitCost: number;
+  unitPrice: number;
+}
+
 export interface CreateQuotationInput {
   customerId: string;
   title: string;
@@ -94,6 +104,7 @@ export const quotationsApi = {
   list: (query: QueryQuotations) => api.get<PaginatedResult<Quotation>>(`/quotations${toQueryString(query)}`),
   get: (id: string) => api.get<Quotation>(`/quotations/${id}`),
   create: (input: CreateQuotationInput) => api.post<Quotation>('/quotations', input),
+  importItems: (file: File) => uploadFile<QuotationImportedItem[]>('/quotations/import-items', file),
   updateHeader: (id: string, input: UpdateQuotationHeaderInput) => api.patch<Quotation>(`/quotations/${id}`, input),
   remove: (id: string) => api.delete<void>(`/quotations/${id}`),
   addRevision: (id: string, input: CreateRevisionInput) => api.post<Quotation>(`/quotations/${id}/revisions`, input),

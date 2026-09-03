@@ -17,6 +17,11 @@ export function useCreateQuotation() {
   });
 }
 
+/** No cache to invalidate — this only parses a file and hands back rows to prefill the form with, nothing is saved. */
+export function useImportQuotationItems() {
+  return useMutation({ mutationFn: (file: File) => quotationsApi.importItems(file) });
+}
+
 export function useAddQuotationRevision(id: string) {
   const qc = useQueryClient();
   return useMutation({

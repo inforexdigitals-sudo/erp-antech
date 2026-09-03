@@ -1,9 +1,12 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PDFParse } from 'pdf-parse';
 import { ApprovalService } from '../../common/approval/approval.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { PaginatedResult, PaginationQueryDto, paginate } from '../../common/dto/pagination.dto';
+import { QuotationImportedItem, parseExcelLineItems } from '../../common/import/parse-excel-line-items.util';
 import { DocumentNumberingService } from '../../common/numbering/document-numbering.service';
 import { CustomersRepository } from '../crm/customers.repository';
+import { findLineItems } from '../project-import/extract-suggestions.util';
 import { ProjectsRepository, ProjectWithDetail } from '../projects/projects.repository';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 import { CreateRevisionDto } from './dto/create-revision.dto';
@@ -71,6 +74,56 @@ export class QuotationsService {
     });
 
     return quotation;
+  }
+
+  /**
+   * Prefills the New Quotation line-items table from an uploaded BOQ/vendor
+   * quote — nothing is persisted here, just parsed and handed back for the
+   * caller to review/edit before actually submitting the quotation (same
+   * "never trusted directly" rule as project-import).
+   *
+   * XLSX/XLS reads real columns (parseExcelLineItems), so it's the reliable
+   * path when the source is already a spreadsheet. PDF falls back to
+   * project-import's line-position heuristic (findLineItems), which only
+   * yields description/qty/unitPrice — category defaults to material and
+   * unit to 'unit', same defaults the New Quotation form itself uses for a
+   * blank row.
+   */
+  async importItems(file: Express.Multer.File | undefined): Promise<QuotationImportedItem[]> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded.');
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      throw new BadRequestException('File must be 15MB or smaller.');
+    }
+
+    const isExcel = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+    ].includes(file.mimetype);
+    if (isExcel) {
+      return parseExcelLineItems(file.buffer);
+    }
+
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('Only PDF or Excel (.xlsx/.xls) files are supported.');
+    }
+
+    const parser = new PDFParse({ data: file.buffer });
+    const text = await parser
+      .getText()
+      .then((result) => result.text ?? '')
+      .catch(() => '')
+      .finally(() => parser.destroy());
+
+    return findLineItems(text.trim()).map((item) => ({
+      description: item.description,
+      category: 'material' as const,
+      unit: 'unit',
+      quantity: item.quantity,
+      unitCost: 0,
+      unitPrice: item.unitPrice,
+    }));
   }
 
   async findOne(companyId: string, id: string): Promise<QuotationWithDetail> {
