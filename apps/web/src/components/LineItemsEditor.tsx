@@ -53,6 +53,7 @@ export function LineItemsEditor<T extends object>({
       <table className="w-full min-w-[560px]">
         <thead>
           <tr>
+            <Th className="w-10">Sl. No.</Th>
             {columns.map((col) => (
               <Th key={String(col.key)}>{col.label}</Th>
             ))}
@@ -62,6 +63,7 @@ export function LineItemsEditor<T extends object>({
         <tbody>
           {items.map((row, index) => (
             <Tr key={index} className={cn(invalidRows?.has(index) && 'bg-critical/5 outline outline-1 -outline-offset-1 outline-critical/40')}>
+              <Td className="text-center text-muted">{index + 1}</Td>
               {columns.map((col) => (
                 <Td key={String(col.key)} style={col.width ? { width: col.width } : undefined}>
                   {col.type === 'select' ? (
