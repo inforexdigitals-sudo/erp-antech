@@ -58,7 +58,7 @@ function CreatePoModal({ open, onClose }: { open: boolean; onClose: () => void }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="New Purchase Order" size="lg">
+    <Modal open={open} onClose={onClose} title="New Purchase Order" size="xl">
       <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
           <Field label="Supplier" htmlFor="po-supplier">
@@ -117,7 +117,7 @@ function EditPoModal({ po, onClose }: { po: PurchaseOrder; onClose: () => void }
   const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
 
   return (
-    <Modal open onClose={onClose} title={`Edit ${po.poNumber}`} size="lg">
+    <Modal open onClose={onClose} title={`Edit ${po.poNumber}`} size="xl">
       <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
           <Field label="Expected Delivery" htmlFor="epo-date">
@@ -213,7 +213,7 @@ function PoDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
   }
 
   return (
-    <Modal open onClose={onClose} title={po ? po.poNumber : 'Purchase Order'} size="lg">
+    <Modal open onClose={onClose} title={po ? po.poNumber : 'Purchase Order'} size="xl">
       {isLoading && <div className="flex justify-center py-8"><Spinner /></div>}
       {error && <ErrorNote>{error instanceof ApiError ? error.message : 'Could not load this PO.'}</ErrorNote>}
       {po && (

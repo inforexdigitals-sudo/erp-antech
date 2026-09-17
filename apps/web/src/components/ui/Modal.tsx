@@ -7,7 +7,7 @@ export interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
-  size?: 'default' | 'lg';
+  size?: 'default' | 'lg' | 'xl';
 }
 
 export function Modal({ open, onClose, title, children, size = 'default' }: ModalProps) {
@@ -28,7 +28,8 @@ export function Modal({ open, onClose, title, children, size = 'default' }: Moda
       <div
         className={cn(
           'relative z-10 my-8 w-full rounded border border-line bg-surface shadow-card',
-          size === 'lg' ? 'max-w-2xl' : 'max-w-md',
+          // 'xl' is sized close to an A4 page's width — for forms with a wide line-items table (Qty/Unit Price/Category etc.) that feel cramped at 'lg'.
+          size === 'xl' ? 'max-w-[850px]' : size === 'lg' ? 'max-w-2xl' : 'max-w-md',
         )}
       >
         <div className="flex items-center justify-between border-b border-line px-4 py-3.5">
