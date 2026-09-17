@@ -104,7 +104,7 @@ function EditQuotationModal({ quotation, onClose }: { quotation: Quotation; onCl
   const estimatedTotal = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0) - discountAmount;
 
   return (
-    <Modal open onClose={onClose} title={`Edit ${quotation.quotationNumber}`} size="lg">
+    <Modal open onClose={onClose} title={`Edit ${quotation.quotationNumber}`} size="xl">
       <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
         {!canEditHeader && (
           <p className="text-xs text-muted">

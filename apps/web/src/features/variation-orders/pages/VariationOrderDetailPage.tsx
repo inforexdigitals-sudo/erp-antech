@@ -72,7 +72,7 @@ function EditVoModal({ vo, onClose }: { vo: VariationOrder; onClose: () => void 
   const revenueImpact = items.reduce((sum, i) => sum + (i.quantity ?? 0) * (i.unitPrice ?? 0), 0);
 
   return (
-    <Modal open onClose={onClose} title={`Edit ${vo.voNumber}`} size="lg">
+    <Modal open onClose={onClose} title={`Edit ${vo.voNumber}`} size="xl">
       <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
         {vo.status === 'pending_approval' && (
           <p className="text-xs text-muted">

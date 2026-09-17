@@ -49,7 +49,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="New Material Request" size="lg">
+    <Modal open={open} onClose={onClose} title="New Material Request" size="xl">
       <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           <Field label="Project" htmlFor="mr-project">
@@ -87,7 +87,7 @@ function DetailModal({ id, onClose }: { id: string; onClose: () => void }) {
   }
 
   return (
-    <Modal open onClose={onClose} title={mr ? mr.requestNumber : 'Material Request'} size="lg">
+    <Modal open onClose={onClose} title={mr ? mr.requestNumber : 'Material Request'} size="xl">
       {isLoading && <div className="flex justify-center py-8"><Spinner /></div>}
       {error && <ErrorNote>{error instanceof ApiError ? error.message : 'Could not load this request.'}</ErrorNote>}
       {mr && (
