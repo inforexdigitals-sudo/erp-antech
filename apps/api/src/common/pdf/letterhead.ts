@@ -176,6 +176,9 @@ export function drawDocumentTitle(doc: PDFKit.PDFDocument, y: number, title: str
  * right before drawFooter(), so it lands wherever the content naturally
  * ends, i.e. the last page.
  */
+/** The closing block's total drawn height, generously rounded up — pass to ensureSpace() before calling drawClosingBlock so it isn't split across a page boundary or, worse, individually auto-paginated line by line. */
+export const CLOSING_BLOCK_HEIGHT = 160;
+
 export function drawClosingBlock(doc: PDFKit.PDFDocument, y: number, companyName: string): number {
   const left = doc.page.margins.left;
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -207,6 +210,32 @@ export function drawClosingBlock(doc: PDFKit.PDFDocument, y: number, companyName
   doc.text(companyName, left + 8, boxTopY + boxHeight - 20, { width: boxWidth - 16 });
 
   return boxTopY + boxHeight + 16;
+}
+
+/**
+ * Call before drawing any fixed-height block that isn't itself bounds-checked
+ * the way drawTable is (a totals summary, the closing signature block, a
+ * short label+paragraph) — starts a new page first if the block wouldn't
+ * fit below `y` on the current one, otherwise returns `y` unchanged.
+ *
+ * Without this, a long itemized quotation could leave `y` sitting just
+ * above the bottom margin when the table finishes. Every subsequent
+ * `doc.text()` call for the totals/closing block is drawn at that
+ * unchanged, now-too-low `y` — pdfkit auto-paginates each one individually
+ * once it overflows, but never updates the caller's `y`, so the *next*
+ * call still targets the same stale coordinate on the page that call just
+ * created. That cascades into a run of near-blank pages, one per text
+ * call, instead of the block landing cleanly together on a fresh page —
+ * exactly the "Subtotal/Tax/Total spread across three empty pages" bug
+ * this closes.
+ */
+export function ensureSpace(doc: PDFKit.PDFDocument, y: number, neededHeight: number): number {
+  const bottomLimit = doc.page.height - doc.page.margins.bottom;
+  if (y + neededHeight > bottomLimit) {
+    doc.addPage();
+    return doc.page.margins.top;
+  }
+  return y;
 }
 
 /** Stamps "Page X of Y" on every buffered page. Call once, right before `doc.end()`. */

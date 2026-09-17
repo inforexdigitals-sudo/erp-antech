@@ -1,6 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CompanyRepository } from '../company/company.repository';
-import { drawClosingBlock, drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
+import {
+  CLOSING_BLOCK_HEIGHT,
+  drawClosingBlock,
+  drawDocumentTitle,
+  drawFooter,
+  drawLetterhead,
+  ensureSpace,
+  generatePdfBuffer,
+} from '../../common/pdf/letterhead';
 import { drawTable, formatMoney } from '../../common/pdf/pdf-table';
 import { ClaimsService } from './claims.service';
 
@@ -85,6 +93,7 @@ export class PaymentCertificatePdfService {
         y += 10;
       }
 
+      y = ensureSpace(doc, y, 70);
       const totalsX = left + pageWidth * 0.6;
       const totalsWidth = pageWidth * 0.4;
       const totalsRow = (label: string, value: string, bold = false): void => {
@@ -99,6 +108,7 @@ export class PaymentCertificatePdfService {
       y += 6;
       totalsRow('Certified Amount', formatMoney(certificate.amount, currency), true);
 
+      y = ensureSpace(doc, y, 20 + CLOSING_BLOCK_HEIGHT);
       y = drawClosingBlock(doc, y + 20, company.name);
       drawFooter(doc);
     });

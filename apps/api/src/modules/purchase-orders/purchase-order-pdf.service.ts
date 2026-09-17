@@ -1,6 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CompanyRepository } from '../company/company.repository';
-import { drawClosingBlock, drawDocumentTitle, drawFooter, drawLetterhead, generatePdfBuffer } from '../../common/pdf/letterhead';
+import {
+  CLOSING_BLOCK_HEIGHT,
+  drawClosingBlock,
+  drawDocumentTitle,
+  drawFooter,
+  drawLetterhead,
+  ensureSpace,
+  generatePdfBuffer,
+} from '../../common/pdf/letterhead';
 import { drawTable, formatMoney } from '../../common/pdf/pdf-table';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
@@ -76,7 +84,7 @@ export class PurchaseOrderPdfService {
         ],
       );
 
-      y += 10;
+      y = ensureSpace(doc, y, 70) + 10;
       const totalsX = left + pageWidth * 0.6;
       const totalsWidth = pageWidth * 0.4;
       const totalsRow = (label: string, value: string, bold = false): void => {
@@ -92,13 +100,14 @@ export class PurchaseOrderPdfService {
       totalsRow('Total', formatMoney(po.total, currency), true);
 
       if (po.paymentTerms) {
-        y += 16;
+        y = ensureSpace(doc, y, 40) + 16;
         doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000').text('Payment Terms', left, y);
         y = doc.y + 2;
         doc.font('Helvetica').text(po.paymentTerms, left, y, { width: pageWidth });
         y = doc.y;
       }
 
+      y = ensureSpace(doc, y, 20 + CLOSING_BLOCK_HEIGHT);
       y = drawClosingBlock(doc, y + 20, company.name);
       drawFooter(doc);
     });
