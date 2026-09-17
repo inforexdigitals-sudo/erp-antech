@@ -14,7 +14,8 @@ export interface PdfTableColumn {
 const HEADER_BG = '#0B2E5B';
 const HEADER_TEXT = '#ffffff';
 const STRIPE_BG = '#F2F5F9';
-const BORDER_COLOR = '#C7CFD9';
+/** Deliberately darker than STRIPE_BG so the line under each row stays visible even on shaded rows — a lighter gray nearly disappeared against the stripe. */
+const BORDER_COLOR = '#9AA5B3';
 
 /** Horizontal gap kept inside every cell so adjacent columns never visually touch, even when a cell's text runs the full width of its column. */
 const CELL_PADDING_X = 6;
@@ -58,7 +59,7 @@ export function drawTable<T>(
   };
 
   const drawRowBorders = (rowY: number, rowHeight: number): void => {
-    doc.lineWidth(0.5).strokeColor(BORDER_COLOR);
+    doc.lineWidth(0.75).strokeColor(BORDER_COLOR);
     let x = startX;
     for (const col of columns) {
       doc.moveTo(x, rowY).lineTo(x, rowY + rowHeight).stroke();
