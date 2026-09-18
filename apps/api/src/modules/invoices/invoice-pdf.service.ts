@@ -78,12 +78,10 @@ export class InvoicePdfService {
           y,
           [
             { header: 'Sl. No.', width: pageWidth * 0.06, align: 'center' },
-            { header: 'Description', width: pageWidth * 0.26 },
-            { header: 'Qty', width: pageWidth * 0.11, align: 'right' },
-            { header: 'Unit Price', width: pageWidth * 0.14, align: 'right' },
-            { header: 'This Claim %', width: pageWidth * 0.14, align: 'right' },
-            { header: 'Cumulative %', width: pageWidth * 0.14, align: 'right' },
-            { header: 'Amount', width: pageWidth * 0.15, align: 'right' },
+            { header: 'Description', width: pageWidth * 0.42 },
+            { header: 'Qty', width: pageWidth * 0.12, align: 'right' },
+            { header: 'Unit Price', width: pageWidth * 0.17, align: 'right' },
+            { header: 'Amount', width: pageWidth * 0.23, align: 'right' },
           ],
           claim.items,
           (item, i) => [
@@ -91,8 +89,6 @@ export class InvoicePdfService {
             item.description,
             item.contractQuantity != null ? `${Number(item.contractQuantity)} ${item.quotationItem?.unit ?? ''}`.trim() : '—',
             item.quotationItem ? formatMoney(item.quotationItem.unitPrice, currency) : '—',
-            `${Number(item.currentPercent).toFixed(1)}%`,
-            `${Number(item.cumulativePercent).toFixed(1)}%`,
             formatMoney(item.amount, currency),
           ],
         );
