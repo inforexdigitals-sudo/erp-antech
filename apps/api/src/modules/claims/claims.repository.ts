@@ -5,7 +5,7 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 import { ClaimStatus } from './claim.types';
 
 const claimDetailInclude = {
-  items: true,
+  items: { include: { quotationItem: { select: { unit: true, unitPrice: true } } } },
   project: { select: { id: true, name: true, projectNumber: true } },
   customer: { select: { id: true, name: true } },
   subcontractor: { select: { id: true, name: true } },
