@@ -45,7 +45,7 @@ export class PurchaseOrderPdfService {
 
       const rightColX = left + pageWidth * 0.6;
       doc.font('Helvetica-Bold').fontSize(9).text('Project', left, y);
-      doc.font('Helvetica').text(`${po.project.projectNumber} — ${po.project.name}`, left, doc.y);
+      doc.font('Helvetica').text(`${po.project.projectNumber} — ${po.project.name}`, left, doc.y, { width: pageWidth * 0.56 });
       const leftColBottomY = doc.y;
 
       doc

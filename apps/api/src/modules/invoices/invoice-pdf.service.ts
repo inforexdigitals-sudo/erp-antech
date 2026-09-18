@@ -51,10 +51,11 @@ export class InvoicePdfService {
       y = doc.y + 10;
 
       const rightColX = left + pageWidth * 0.6;
+      const leftColWidth = pageWidth * 0.56;
       doc.font('Helvetica-Bold').fontSize(9).text('Project', left, y);
-      doc.font('Helvetica').text(`${invoice.project.projectNumber} — ${invoice.project.name}`, left, doc.y);
+      doc.font('Helvetica').text(`${invoice.project.projectNumber} — ${invoice.project.name}`, left, doc.y, { width: leftColWidth });
       if (claim) {
-        doc.text(`Progress Claim: ${claim.claimNumber}`, left, doc.y);
+        doc.text(`Progress Claim: ${claim.claimNumber}`, left, doc.y, { width: leftColWidth });
       }
       const leftColBottomY = doc.y;
 
@@ -77,15 +78,19 @@ export class InvoicePdfService {
           y,
           [
             { header: 'Sl. No.', width: pageWidth * 0.06, align: 'center' },
-            { header: 'Description', width: pageWidth * 0.40 },
-            { header: 'This Claim %', width: pageWidth * 0.18, align: 'right' },
-            { header: 'Cumulative %', width: pageWidth * 0.18, align: 'right' },
-            { header: 'Amount', width: pageWidth * 0.18, align: 'right' },
+            { header: 'Description', width: pageWidth * 0.26 },
+            { header: 'Qty', width: pageWidth * 0.11, align: 'right' },
+            { header: 'Unit Price', width: pageWidth * 0.14, align: 'right' },
+            { header: 'This Claim %', width: pageWidth * 0.14, align: 'right' },
+            { header: 'Cumulative %', width: pageWidth * 0.14, align: 'right' },
+            { header: 'Amount', width: pageWidth * 0.15, align: 'right' },
           ],
           claim.items,
           (item, i) => [
             String(i + 1),
             item.description,
+            item.contractQuantity != null ? `${Number(item.contractQuantity)} ${item.quotationItem?.unit ?? ''}`.trim() : '—',
+            item.quotationItem ? formatMoney(item.quotationItem.unitPrice, currency) : '—',
             `${Number(item.currentPercent).toFixed(1)}%`,
             `${Number(item.cumulativePercent).toFixed(1)}%`,
             formatMoney(item.amount, currency),

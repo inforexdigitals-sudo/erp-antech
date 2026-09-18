@@ -50,9 +50,10 @@ export class PaymentCertificatePdfService {
       y = doc.y + 10;
 
       const rightColX = left + pageWidth * 0.6;
+      const leftColWidth = pageWidth * 0.56;
       doc.font('Helvetica-Bold').fontSize(9).text('Project', left, y);
-      doc.font('Helvetica').text(`${claim.project.projectNumber} — ${claim.project.name}`, left, doc.y);
-      doc.text(`Claim: ${claim.claimNumber}`, left, doc.y);
+      doc.font('Helvetica').text(`${claim.project.projectNumber} — ${claim.project.name}`, left, doc.y, { width: leftColWidth });
+      doc.text(`Claim: ${claim.claimNumber}`, left, doc.y, { width: leftColWidth });
       const leftColBottomY = doc.y;
 
       doc
