@@ -46,6 +46,7 @@ export class QuotationPdfService {
       y = doc.y + 10;
 
       doc.font('Helvetica-Bold').text(quotation.title, left, y, { width: pageWidth * 0.6 });
+      const titleBottomY = doc.y;
       const rightColX = left + pageWidth * 0.65;
       doc
         .font('Helvetica')
@@ -57,7 +58,7 @@ export class QuotationPdfService {
           align: 'right',
         });
       }
-      y = Math.max(doc.y, y) + 16;
+      y = Math.max(doc.y, titleBottomY) + 16;
 
       const rev = quotation.currentRevision;
       if (!rev) {

@@ -46,6 +46,7 @@ export class PurchaseOrderPdfService {
       const rightColX = left + pageWidth * 0.6;
       doc.font('Helvetica-Bold').fontSize(9).text('Project', left, y);
       doc.font('Helvetica').text(`${po.project.projectNumber} — ${po.project.name}`, left, doc.y);
+      const leftColBottomY = doc.y;
 
       doc
         .font('Helvetica')
@@ -59,7 +60,7 @@ export class PurchaseOrderPdfService {
           { width: pageWidth * 0.4, align: 'right' },
         );
       }
-      y = Math.max(doc.y, y) + 16;
+      y = Math.max(doc.y, leftColBottomY) + 16;
 
       y = drawTable(
         doc,

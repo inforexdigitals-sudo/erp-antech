@@ -21,7 +21,7 @@ const BORDER_COLOR = '#9AA5B3';
 const CELL_PADDING_X = 6;
 const CELL_PADDING_Y = 6;
 const MIN_ROW_HEIGHT = 20;
-const HEADER_HEIGHT = 22;
+const MIN_HEADER_HEIGHT = 22;
 
 /**
  * A minimal, hand-rolled table renderer — pdfkit has no built-in table
@@ -44,18 +44,26 @@ export function drawTable<T>(
   let y = startY;
 
   const drawHeader = (headerY: number): number => {
-    doc.rect(startX, headerY, tableWidth, HEADER_HEIGHT).fill(HEADER_BG);
+    doc.fontSize(8).font('Helvetica-Bold');
+    const headerHeight = Math.max(
+      MIN_HEADER_HEIGHT,
+      ...columns.map(
+        (col) => doc.heightOfString(col.header, { width: col.width - CELL_PADDING_X * 2 }) + CELL_PADDING_Y * 2,
+      ),
+    );
+
+    doc.rect(startX, headerY, tableWidth, headerHeight).fill(HEADER_BG);
     let x = startX;
-    doc.fontSize(8).font('Helvetica-Bold').fillColor(HEADER_TEXT);
+    doc.fillColor(HEADER_TEXT);
     for (const col of columns) {
-      doc.text(col.header, x + CELL_PADDING_X, headerY + 7, {
+      doc.text(col.header, x + CELL_PADDING_X, headerY + CELL_PADDING_Y, {
         width: col.width - CELL_PADDING_X * 2,
         align: col.align ?? 'left',
       });
       x += col.width;
     }
-    doc.lineWidth(0.75).strokeColor(HEADER_BG).rect(startX, headerY, tableWidth, HEADER_HEIGHT).stroke();
-    return headerY + HEADER_HEIGHT;
+    doc.lineWidth(0.75).strokeColor(HEADER_BG).rect(startX, headerY, tableWidth, headerHeight).stroke();
+    return headerY + headerHeight;
   };
 
   const drawRowBorders = (rowY: number, rowHeight: number): void => {

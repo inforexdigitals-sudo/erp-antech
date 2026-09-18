@@ -53,6 +53,7 @@ export class PaymentCertificatePdfService {
       doc.font('Helvetica-Bold').fontSize(9).text('Project', left, y);
       doc.font('Helvetica').text(`${claim.project.projectNumber} — ${claim.project.name}`, left, doc.y);
       doc.text(`Claim: ${claim.claimNumber}`, left, doc.y);
+      const leftColBottomY = doc.y;
 
       doc
         .font('Helvetica')
@@ -65,7 +66,7 @@ export class PaymentCertificatePdfService {
           y,
           { width: pageWidth * 0.4, align: 'right' },
         );
-      y = Math.max(doc.y, y) + 16;
+      y = Math.max(doc.y, leftColBottomY) + 16;
 
       if (claim.items.length > 0) {
         y = drawTable(

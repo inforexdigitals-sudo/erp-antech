@@ -56,6 +56,7 @@ export class InvoicePdfService {
       if (claim) {
         doc.text(`Progress Claim: ${claim.claimNumber}`, left, doc.y);
       }
+      const leftColBottomY = doc.y;
 
       doc
         .font('Helvetica')
@@ -67,7 +68,7 @@ export class InvoicePdfService {
           align: 'right',
         });
       }
-      y = Math.max(doc.y, y) + 16;
+      y = Math.max(doc.y, leftColBottomY) + 16;
 
       if (claim && claim.items.length > 0) {
         y = drawTable(
