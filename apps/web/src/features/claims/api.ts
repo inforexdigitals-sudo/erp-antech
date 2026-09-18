@@ -34,10 +34,22 @@ export interface Claim {
 }
 
 export interface ClaimItemInput {
+  quotationItemId?: string;
   description: string;
   contractQuantity?: number;
   currentPercent: number;
   amount: number;
+}
+
+/** One line of the project's originating quotation — see GET /claims/boq-lines/:projectId. Used to prefill a new claim's BOQ Lines instead of retyping them every period. */
+export interface BoqLine {
+  quotationItemId: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  previousPercent: number;
 }
 
 export interface CreateClaimInput {
@@ -61,6 +73,7 @@ export interface QueryClaims {
 export const claimsApi = {
   list: (query: QueryClaims) => api.get<PaginatedResult<Claim>>(`/claims${toQueryString(query)}`),
   get: (id: string) => api.get<Claim>(`/claims/${id}`),
+  getBoqLines: (projectId: string) => api.get<BoqLine[]>(`/claims/boq-lines/${projectId}`),
   create: (input: CreateClaimInput) => api.post<Claim>('/claims', input),
   submitForApproval: (id: string) => api.post<Claim>(`/claims/${id}/submit-for-approval`),
   certify: (id: string) => api.post<Claim>(`/claims/${id}/certify`, {}),

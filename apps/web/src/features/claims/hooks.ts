@@ -9,6 +9,14 @@ export function useClaim(id: string | undefined) {
   return useQuery({ queryKey: ['claims', id], queryFn: () => claimsApi.get(id!), enabled: !!id });
 }
 
+export function useBoqLines(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['claims', 'boq-lines', projectId],
+    queryFn: () => claimsApi.getBoqLines(projectId!),
+    enabled: !!projectId,
+  });
+}
+
 export function useCreateClaim() {
   const qc = useQueryClient();
   return useMutation({

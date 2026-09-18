@@ -27,6 +27,18 @@ export interface ClaimItemInput {
   amount: number;
 }
 
+/** One line of the project's originating quotation, offered as a starting point for a new claim's items — see ClaimsRepository.getBoqLines. */
+export interface BoqLine {
+  quotationItemId: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  /** Already-certified cumulative % for this BOQ line, same source as buildItems' 100%-cap check — shown so the preparer doesn't have to look it up before typing "This Period %". */
+  previousPercent: number;
+}
+
 export interface CreateClaimParams {
   companyId: string;
   projectId: string;
@@ -131,6 +143,47 @@ export class ClaimsRepository {
       }
     }
     return new Map([...latest.entries()].map(([id, v]) => [id, v.cumulativePercent]));
+  }
+
+  /**
+   * A project's "BOQ" here is just its originating quotation's line
+   * items (Project.quotationId — see the convert-quotation-to-project
+   * flow) — there's no separate BOQ table in this schema. A project not
+   * created from a quotation, or whose quotation never had a priced
+   * revision, simply has nothing to offer here.
+   */
+  async getBoqLines(companyId: string, projectId: string): Promise<BoqLine[]> {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, companyId },
+      select: {
+        quotation: {
+          select: {
+            currentRevision: {
+              select: {
+                items: {
+                  orderBy: { sortOrder: 'asc' },
+                  select: { id: true, description: true, unit: true, quantity: true, unitPrice: true, lineTotal: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    const items = project?.quotation?.currentRevision?.items ?? [];
+    if (items.length === 0) return [];
+
+    const previousPercents = await this.getPreviousCumulativePercents(companyId, projectId, items.map((item) => item.id));
+
+    return items.map((item) => ({
+      quotationItemId: item.id,
+      description: item.description,
+      unit: item.unit,
+      quantity: Number(item.quantity),
+      unitPrice: Number(item.unitPrice),
+      lineTotal: Number(item.lineTotal),
+      previousPercent: previousPercents.get(item.id) ?? 0,
+    }));
   }
 
   async updateStatus(

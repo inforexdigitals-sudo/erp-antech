@@ -25,6 +25,12 @@ export class ClaimsController {
     return this.claims.list(user.companyId, query);
   }
 
+  @Get('boq-lines/:projectId')
+  @RequirePermission(PERMISSIONS.CLAIM_CREATE)
+  getBoqLines(@CurrentUser() user: AuthenticatedUser, @Param('projectId', ParseUUIDPipe) projectId: string) {
+    return this.claims.getBoqLines(user.companyId, projectId);
+  }
+
   @Get(':id')
   @RequirePermission(PERMISSIONS.CLAIM_VIEW)
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {

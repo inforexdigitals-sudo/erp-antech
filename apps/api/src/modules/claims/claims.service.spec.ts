@@ -37,6 +37,7 @@ describe('ClaimsService', () => {
       | 'findById'
       | 'list'
       | 'getPreviousCumulativePercents'
+      | 'getBoqLines'
       | 'updateStatus'
       | 'tryTransitionStatus'
       | 'createPaymentCertificate'
@@ -55,6 +56,7 @@ describe('ClaimsService', () => {
       findById: jest.fn().mockResolvedValue(makeClaim()),
       list: jest.fn(),
       getPreviousCumulativePercents: jest.fn().mockResolvedValue(new Map()),
+      getBoqLines: jest.fn().mockResolvedValue([]),
       updateStatus: jest.fn(),
       tryTransitionStatus: jest.fn().mockResolvedValue(true),
       createPaymentCertificate: jest.fn(),
@@ -122,6 +124,20 @@ describe('ClaimsService', () => {
           items: [{ quotationItemId: 'qi-1', description: 'Foundation works', currentPercent: 40, amount: 1000 }],
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getBoqLines', () => {
+    it('rejects a project that does not belong to the tenant', async () => {
+      projects.findById.mockResolvedValue(null);
+      await expect(service.getBoqLines(COMPANY_ID, 'project-1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('returns the repository\'s BOQ lines for a valid project', async () => {
+      const lines = [{ quotationItemId: 'qi-1', description: 'Foundation works', unit: 'm3', quantity: 10, unitPrice: 100, lineTotal: 1000, previousPercent: 0 }];
+      repository.getBoqLines.mockResolvedValue(lines);
+
+      await expect(service.getBoqLines(COMPANY_ID, 'project-1')).resolves.toEqual(lines);
     });
   });
 

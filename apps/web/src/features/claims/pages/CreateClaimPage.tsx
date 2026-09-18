@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LineItemsEditor, type LineItemColumn } from '../../../components/LineItemsEditor';
 import { PageHeader } from '../../../components/PageHeader';
@@ -9,17 +9,28 @@ import { Field, Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { ApiError } from '../../../lib/api-client';
 import { useCustomers, usePickerProjects, usePickerSubcontractors } from '../../shared/hooks';
-import { useCreateClaim } from '../hooks';
+import { useBoqLines, useCreateClaim } from '../hooks';
 import type { ClaimItemInput, ClaimType } from '../api';
 
-function newItem(): ClaimItemInput {
+/** `unitPrice` is reference-only — it drives the auto-computed Amount below but isn't part of ClaimItemInput, so it's stripped before submit (see onSubmit). */
+interface ClaimLineRow extends ClaimItemInput {
+  unitPrice?: number;
+}
+
+function newItem(): ClaimLineRow {
   return { description: '', currentPercent: 0, amount: 0 };
 }
 
-const COLUMNS: LineItemColumn<ClaimItemInput>[] = [
-  { key: 'description', label: 'Description', type: 'text', width: '45%' },
-  { key: 'currentPercent', label: 'This Period %', type: 'number', min: 0, step: 0.1, width: '25%' },
-  { key: 'amount', label: 'Amount ($)', type: 'number', min: 0, step: 0.01, width: '30%' },
+function round2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+const COLUMNS: LineItemColumn<ClaimLineRow>[] = [
+  { key: 'description', label: 'Description', type: 'text', width: '32%' },
+  { key: 'contractQuantity', label: 'Qty', type: 'number', min: 0, step: 0.01, width: '13%' },
+  { key: 'unitPrice', label: 'Unit Price ($)', type: 'number', min: 0, step: 0.01, width: '15%' },
+  { key: 'currentPercent', label: 'This Period %', type: 'number', min: 0, step: 0.1, width: '15%' },
+  { key: 'amount', label: 'Amount ($)', type: 'number', min: 0, step: 0.01, width: '15%' },
 ];
 
 export function CreateClaimPage() {
@@ -36,8 +47,53 @@ export function CreateClaimPage() {
   const [claimPeriodStart, setClaimPeriodStart] = useState('');
   const [claimPeriodEnd, setClaimPeriodEnd] = useState('');
   const [retentionPercent, setRetentionPercent] = useState(5);
-  const [items, setItems] = useState<ClaimItemInput[]>([newItem()]);
+  const [items, setItems] = useState<ClaimLineRow[]>([newItem()]);
   const [error, setError] = useState<string | null>(null);
+
+  const boqLines = useBoqLines(projectId || undefined);
+  // Guards against re-applying the same project's BOQ on every render, while
+  // still re-applying when the project actually changes (including back to
+  // one already fetched, since react-query would resolve that instantly).
+  const loadedForProjectId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!projectId || !boqLines.data || loadedForProjectId.current === projectId) return;
+    loadedForProjectId.current = projectId;
+    if (boqLines.data.length > 0) {
+      setItems(
+        boqLines.data.map((line) => ({
+          quotationItemId: line.quotationItemId,
+          description: line.description,
+          contractQuantity: line.quantity,
+          unitPrice: line.unitPrice,
+          currentPercent: 0,
+          amount: 0,
+        })),
+      );
+    }
+  }, [projectId, boqLines.data]);
+
+  function onProjectChange(nextProjectId: string) {
+    setProjectId(nextProjectId);
+    loadedForProjectId.current = null;
+    setItems([newItem()]);
+  }
+
+  function onItemsChange(next: ClaimLineRow[]) {
+    // Auto-computes Amount from Qty × Unit Price × This Period % whenever
+    // one of those three changes; leaves it alone when Amount itself was
+    // the field just edited, so a manual override still sticks.
+    setItems(
+      next.map((row, i) => {
+        const prev = items[i];
+        const amountEditedDirectly = prev && row.amount !== prev.amount;
+        if (!amountEditedDirectly && row.contractQuantity != null && row.unitPrice != null) {
+          return { ...row, amount: round2(row.contractQuantity * row.unitPrice * (row.currentPercent / 100)) };
+        }
+        return row;
+      }),
+    );
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -51,7 +107,7 @@ export function CreateClaimPage() {
         claimPeriodStart,
         claimPeriodEnd,
         retentionPercent: retentionPercent || undefined,
-        items,
+        items: items.map(({ unitPrice: _unitPrice, ...item }) => item),
       });
       navigate(`/claims/${claim.id}`);
     } catch (err) {
@@ -69,7 +125,7 @@ export function CreateClaimPage() {
         <Card>
           <CardContent className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
             <Field label="Project" htmlFor="c-project">
-              <Select id="c-project" required value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <Select id="c-project" required value={projectId} onChange={(e) => onProjectChange(e.target.value)}>
                 <option value="" disabled>Select…</option>
                 {projects.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </Select>
@@ -111,9 +167,15 @@ export function CreateClaimPage() {
           <CardContent className="flex flex-col gap-3">
             <h3 className="text-[13.5px] font-semibold">BOQ Lines</h3>
             <p className="text-xs text-muted">
-              Percentage and amount are entered directly — this schema has no linked BOQ value to derive them from automatically.
+              {!projectId
+                ? 'Select a project above to pull in its quoted BOQ lines automatically.'
+                : boqLines.isLoading
+                  ? 'Loading BOQ lines from the project…'
+                  : boqLines.data && boqLines.data.length > 0
+                    ? 'Lines are pre-filled from the project\'s quotation — adjust Qty, Unit Price or This Period % as needed, or add extra lines manually. Amount is calculated automatically.'
+                    : 'This project has no linked quotation to pull BOQ lines from — add lines manually below.'}
             </p>
-            <LineItemsEditor items={items} onChange={setItems} columns={COLUMNS} newRow={newItem} />
+            <LineItemsEditor items={items} onChange={onItemsChange} columns={COLUMNS} newRow={newItem} />
             <div className="ml-auto flex max-w-[260px] flex-col gap-1 text-[13px]">
               <div className="flex justify-between"><span className="text-muted">Claim Amount</span><span className="num">${claimAmount.toFixed(2)}</span></div>
               <div className="flex justify-between"><span className="text-muted">Retention</span><span className="num">-${retentionAmount.toFixed(2)}</span></div>

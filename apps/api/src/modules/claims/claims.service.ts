@@ -7,7 +7,7 @@ import { CustomersRepository } from '../crm/customers.repository';
 import { CostingService } from '../project-costing/project-costing.service';
 import { ProjectsRepository } from '../projects/projects.repository';
 import { SubcontractorsRepository } from '../subcontractors/subcontractors.repository';
-import { ClaimItemInput, ClaimWithDetail, ClaimsRepository } from './claims.repository';
+import { BoqLine, ClaimItemInput, ClaimWithDetail, ClaimsRepository } from './claims.repository';
 import { ClaimItemInputDto } from './dto/claim-item-input.dto';
 import { CreateClaimDto } from './dto/create-claim.dto';
 
@@ -66,6 +66,15 @@ export class ClaimsService {
 
     await this.audit.record({ companyId, actorUserId, action: 'create', entityType: 'claim', entityId: claim.id, after: claim });
     return claim;
+  }
+
+  /** Prefill data for CreateClaimPage — the project's originating quotation's line items, so a new claim's BOQ Lines don't have to be retyped from scratch every period. */
+  async getBoqLines(companyId: string, projectId: string): Promise<BoqLine[]> {
+    const project = await this.projects.findById(companyId, projectId);
+    if (!project) {
+      throw new BadRequestException('Project not found.');
+    }
+    return this.repository.getBoqLines(companyId, projectId);
   }
 
   async findOne(companyId: string, id: string): Promise<ClaimWithDetail> {
