@@ -177,7 +177,7 @@ export function drawDocumentTitle(doc: PDFKit.PDFDocument, y: number, title: str
  * ends, i.e. the last page.
  */
 /** The closing block's total drawn height, generously rounded up — pass to ensureSpace() before calling drawClosingBlock so it isn't split across a page boundary or, worse, individually auto-paginated line by line. */
-export const CLOSING_BLOCK_HEIGHT = 160;
+export const CLOSING_BLOCK_HEIGHT = 130;
 
 export function drawClosingBlock(doc: PDFKit.PDFDocument, y: number, companyName: string): number {
   const left = doc.page.margins.left;
@@ -190,17 +190,17 @@ export function drawClosingBlock(doc: PDFKit.PDFDocument, y: number, companyName
     .text('We trust the above meet your requirement and look forward to hear from you soon. Thank you.', left, y, {
       width: pageWidth,
     });
-  y = doc.y + 20;
+  y = doc.y + 14;
 
   const boxWidth = pageWidth * 0.42;
-  const boxHeight = 90;
+  const boxHeight = 75;
   const rightBoxX = left + pageWidth - boxWidth;
 
   doc
     .fontSize(9)
     .font('Helvetica-Bold')
     .text('Confirmed and Accepted By,', rightBoxX, y, { width: boxWidth, align: 'center' });
-  const boxTopY = doc.y + 6;
+  const boxTopY = doc.y + 4;
 
   doc.lineWidth(1).strokeColor('#000000');
   doc.rect(left, boxTopY, boxWidth, boxHeight).stroke();
@@ -209,7 +209,7 @@ export function drawClosingBlock(doc: PDFKit.PDFDocument, y: number, companyName
   doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000').text('Yours Faithfully', left + 8, boxTopY + 8);
   doc.text(companyName, left + 8, boxTopY + boxHeight - 20, { width: boxWidth - 16 });
 
-  return boxTopY + boxHeight + 16;
+  return boxTopY + boxHeight + 12;
 }
 
 /**

@@ -114,8 +114,8 @@ export class QuotationPdfService {
         y = doc.y;
       }
 
-      y = ensureSpace(doc, y, 20 + CLOSING_BLOCK_HEIGHT);
-      y = drawClosingBlock(doc, y + 20, company.name);
+      y = ensureSpace(doc, y, 14 + CLOSING_BLOCK_HEIGHT);
+      y = drawClosingBlock(doc, y + 14, company.name);
       drawFooter(doc);
     });
 

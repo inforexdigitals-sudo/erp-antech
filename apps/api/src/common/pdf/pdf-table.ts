@@ -19,7 +19,7 @@ const BORDER_COLOR = '#9AA5B3';
 
 /** Horizontal gap kept inside every cell so adjacent columns never visually touch, even when a cell's text runs the full width of its column. */
 const CELL_PADDING_X = 6;
-const CELL_PADDING_Y = 6;
+const CELL_PADDING_Y = 4;
 const MIN_ROW_HEIGHT = 20;
 const MIN_HEADER_HEIGHT = 22;
 

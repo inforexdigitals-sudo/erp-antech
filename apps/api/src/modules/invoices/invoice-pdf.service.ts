@@ -114,8 +114,8 @@ export class InvoicePdfService {
       totalsRow('Amount Paid', formatMoney(invoice.amountPaid, currency));
       totalsRow('Balance Due', formatMoney(balanceDue, currency), true);
 
-      y = ensureSpace(doc, y, 20 + CLOSING_BLOCK_HEIGHT);
-      y = drawClosingBlock(doc, y + 20, company.name);
+      y = ensureSpace(doc, y, 14 + CLOSING_BLOCK_HEIGHT);
+      y = drawClosingBlock(doc, y + 14, company.name);
       drawFooter(doc);
     });
 
