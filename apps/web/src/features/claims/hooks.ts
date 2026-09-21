@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { claimsApi, CreateClaimInput, QueryClaims } from './api';
+import { claimsApi, CreateClaimInput, QueryClaims, UpdateClaimInput } from './api';
 
 export function useClaims(query: QueryClaims) {
   return useQuery({ queryKey: ['claims', query], queryFn: () => claimsApi.list(query) });
@@ -32,6 +32,7 @@ export function useClaimActions(id: string) {
     qc.invalidateQueries({ queryKey: ['invoices'] });
   };
   return {
+    update: useMutation({ mutationFn: (input: UpdateClaimInput) => claimsApi.update(id, input), onSuccess: invalidate }),
     submitForApproval: useMutation({ mutationFn: () => claimsApi.submitForApproval(id), onSuccess: invalidate }),
     certify: useMutation({ mutationFn: () => claimsApi.certify(id), onSuccess: invalidate }),
     reject: useMutation({ mutationFn: () => claimsApi.reject(id), onSuccess: invalidate }),

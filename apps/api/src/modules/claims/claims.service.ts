@@ -10,6 +10,7 @@ import { SubcontractorsRepository } from '../subcontractors/subcontractors.repos
 import { BoqLine, ClaimItemInput, ClaimWithDetail, ClaimsRepository } from './claims.repository';
 import { ClaimItemInputDto } from './dto/claim-item-input.dto';
 import { CreateClaimDto } from './dto/create-claim.dto';
+import { UpdateClaimDto } from './dto/update-claim.dto';
 
 function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -83,6 +84,50 @@ export class ClaimsService {
       throw new NotFoundException('Claim not found.');
     }
     return claim;
+  }
+
+  /**
+   * Editable only while 'draft' — once submitted, the same locked-after-
+   * certification reasoning InvoicesService.update follows applies even
+   * earlier here: a claim under review is already in someone else's
+   * approval queue, and a certified one is the source of truth an
+   * invoice/payment certificate was raised from (see certify()). projectId,
+   * claimType and the customer/subcontractor aren't revisable — those are
+   * identity fields fixed at creation, same restriction CreateClaimDto's
+   * validateClaimant() enforces there.
+   */
+  async update(companyId: string, id: string, actorUserId: string, dto: UpdateClaimDto): Promise<ClaimWithDetail> {
+    const before = await this.findOne(companyId, id);
+    if (before.status !== 'draft') {
+      throw new ForbiddenException(
+        `A claim in '${before.status}' status cannot be edited — only while still draft, before it's submitted for approval.`,
+      );
+    }
+
+    const claimPeriodStart = dto.claimPeriodStart ?? before.claimPeriodStart.toISOString();
+    const claimPeriodEnd = dto.claimPeriodEnd ?? before.claimPeriodEnd.toISOString();
+    if (new Date(claimPeriodEnd) < new Date(claimPeriodStart)) {
+      throw new BadRequestException('claimPeriodEnd cannot be before claimPeriodStart.');
+    }
+
+    const items = dto.items ? await this.buildItems(companyId, before.projectId, dto.items) : undefined;
+    const claimAmount = items ? round2(items.reduce((sum, item) => sum + item.amount, 0)) : Number(before.claimAmount);
+    const retentionPercent = dto.retentionPercent ?? Number(before.retentionPercent);
+    const retentionAmount = round2(claimAmount * (retentionPercent / 100));
+    const netClaimAmount = round2(claimAmount - retentionAmount);
+
+    const updated = await this.repository.update(companyId, id, {
+      claimPeriodStart: dto.claimPeriodStart ? new Date(dto.claimPeriodStart) : undefined,
+      claimPeriodEnd: dto.claimPeriodEnd ? new Date(dto.claimPeriodEnd) : undefined,
+      retentionPercent,
+      claimAmount,
+      retentionAmount,
+      netClaimAmount,
+      items,
+    });
+
+    await this.audit.record({ companyId, actorUserId, action: 'update', entityType: 'claim', entityId: id, before, after: updated });
+    return updated;
   }
 
   async list(

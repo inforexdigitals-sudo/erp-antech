@@ -89,6 +89,45 @@ export class ClaimsRepository {
     return this.prisma.claim.findFirst({ where: { id, companyId }, include: claimDetailInclude });
   }
 
+  /**
+   * Only ever called for a 'draft' claim (ClaimsService.update enforces
+   * that) — items, when given, are replaced wholesale rather than diffed,
+   * same reasoning as UsersRepository.setRoles: simpler and safe for an
+   * infrequent edit of what's still an unsubmitted draft.
+   */
+  async update(
+    companyId: string,
+    id: string,
+    params: {
+      claimPeriodStart?: Date;
+      claimPeriodEnd?: Date;
+      retentionPercent: number;
+      claimAmount: number;
+      retentionAmount: number;
+      netClaimAmount: number;
+      items?: ClaimItemInput[];
+    },
+  ): Promise<ClaimWithDetail> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.claim.update({
+        where: { id, companyId },
+        data: {
+          claimPeriodStart: params.claimPeriodStart,
+          claimPeriodEnd: params.claimPeriodEnd,
+          retentionPercent: params.retentionPercent,
+          claimAmount: params.claimAmount,
+          retentionAmount: params.retentionAmount,
+          netClaimAmount: params.netClaimAmount,
+        },
+      });
+      if (params.items) {
+        await tx.claimItem.deleteMany({ where: { claimId: id } });
+        await tx.claimItem.createMany({ data: params.items.map((item) => ({ ...item, claimId: id })) });
+      }
+    });
+    return (await this.findById(companyId, id))!;
+  }
+
   async list(
     companyId: string,
     query: PaginationQueryDto & { status?: string; projectId?: string },

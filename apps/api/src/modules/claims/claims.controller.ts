@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PERMISSIONS } from '../../common/constants/permissions';
@@ -9,6 +9,7 @@ import { AuthenticatedUser } from '../../common/types/auth.types';
 import { ClaimsService } from './claims.service';
 import { CreateClaimDto } from './dto/create-claim.dto';
 import { QueryClaimsDto } from './dto/query-claims.dto';
+import { UpdateClaimDto } from './dto/update-claim.dto';
 import { PaymentCertificatePdfService } from './payment-certificate-pdf.service';
 
 @ApiTags('claims')
@@ -41,6 +42,12 @@ export class ClaimsController {
   @RequirePermission(PERMISSIONS.CLAIM_CREATE)
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateClaimDto) {
     return this.claims.create(user.companyId, user.userId, dto);
+  }
+
+  @Patch(':id')
+  @RequirePermission(PERMISSIONS.CLAIM_EDIT)
+  update(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateClaimDto) {
+    return this.claims.update(user.companyId, id, user.userId, dto);
   }
 
   @Post(':id/submit-for-approval')

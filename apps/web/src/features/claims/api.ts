@@ -5,12 +5,15 @@ export type ClaimStatus = 'draft' | 'submitted' | 'under_review' | 'certified' |
 
 export interface ClaimItem {
   id: string;
+  quotationItemId: string | null;
   description: string;
   contractQuantity: string | null;
   previousPercent: string;
   currentPercent: string;
   cumulativePercent: string;
   amount: string;
+  /** Reference only (for showing/recomputing Amount when editing) — sourced from the linked BOQ line, null for a manually-added item. */
+  quotationItem: { unit: string; unitPrice: string } | null;
 }
 
 export interface Claim {
@@ -63,6 +66,14 @@ export interface CreateClaimInput {
   items: ClaimItemInput[];
 }
 
+/** Only while a claim is still 'draft' — see ClaimsService.update. Items, when given, replace the claim's BOQ lines wholesale, same as create. */
+export interface UpdateClaimInput {
+  claimPeriodStart?: string;
+  claimPeriodEnd?: string;
+  retentionPercent?: number;
+  items?: ClaimItemInput[];
+}
+
 export interface QueryClaims {
   page?: number;
   pageSize?: number;
@@ -75,6 +86,7 @@ export const claimsApi = {
   get: (id: string) => api.get<Claim>(`/claims/${id}`),
   getBoqLines: (projectId: string) => api.get<BoqLine[]>(`/claims/boq-lines/${projectId}`),
   create: (input: CreateClaimInput) => api.post<Claim>('/claims', input),
+  update: (id: string, input: UpdateClaimInput) => api.patch<Claim>(`/claims/${id}`, input),
   submitForApproval: (id: string) => api.post<Claim>(`/claims/${id}/submit-for-approval`),
   certify: (id: string) => api.post<Claim>(`/claims/${id}/certify`, {}),
   reject: (id: string) => api.post<Claim>(`/claims/${id}/reject`, {}),

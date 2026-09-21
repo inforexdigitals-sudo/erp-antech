@@ -20,6 +20,9 @@ function makeClaim(overrides: Record<string, unknown> = {}) {
     projectId: 'project-1',
     claimType: 'client',
     status: 'draft',
+    claimPeriodStart: new Date('2026-07-01'),
+    claimPeriodEnd: new Date('2026-07-31'),
+    retentionPercent: 5,
     claimAmount: 1000,
     retentionAmount: 100,
     netClaimAmount: 900,
@@ -38,6 +41,7 @@ describe('ClaimsService', () => {
       | 'list'
       | 'getPreviousCumulativePercents'
       | 'getBoqLines'
+      | 'update'
       | 'updateStatus'
       | 'tryTransitionStatus'
       | 'createPaymentCertificate'
@@ -57,6 +61,7 @@ describe('ClaimsService', () => {
       list: jest.fn(),
       getPreviousCumulativePercents: jest.fn().mockResolvedValue(new Map()),
       getBoqLines: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue(makeClaim()),
       updateStatus: jest.fn(),
       tryTransitionStatus: jest.fn().mockResolvedValue(true),
       createPaymentCertificate: jest.fn(),
@@ -138,6 +143,56 @@ describe('ClaimsService', () => {
       repository.getBoqLines.mockResolvedValue(lines);
 
       await expect(service.getBoqLines(COMPANY_ID, 'project-1')).resolves.toEqual(lines);
+    });
+  });
+
+  describe('update', () => {
+    it('rejects editing a claim that is no longer draft', async () => {
+      repository.findById.mockResolvedValue(makeClaim({ status: 'under_review' }) as never);
+
+      await expect(service.update(COMPANY_ID, CLAIM_ID, USER_ID, { retentionPercent: 10 })).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a claim period end before its start', async () => {
+      repository.findById.mockResolvedValue(makeClaim() as never);
+
+      await expect(
+        service.update(COMPANY_ID, CLAIM_ID, USER_ID, { claimPeriodStart: '2026-08-01', claimPeriodEnd: '2026-07-01' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('recomputes retention and net amount from a new retentionPercent without touching items', async () => {
+      repository.findById.mockResolvedValue(makeClaim({ claimAmount: 1000 }) as never);
+
+      await service.update(COMPANY_ID, CLAIM_ID, USER_ID, { retentionPercent: 10 });
+
+      expect(repository.update).toHaveBeenCalledWith(
+        COMPANY_ID,
+        CLAIM_ID,
+        expect.objectContaining({ retentionPercent: 10, claimAmount: 1000, retentionAmount: 100, netClaimAmount: 900, items: undefined }),
+      );
+    });
+
+    it('rebuilds items and recomputes claimAmount when items are given', async () => {
+      repository.findById.mockResolvedValue(makeClaim({ retentionPercent: 5 }) as never);
+
+      await service.update(COMPANY_ID, CLAIM_ID, USER_ID, {
+        items: [{ description: 'Revised scope', currentPercent: 50, amount: 2000 }],
+      });
+
+      expect(repository.update).toHaveBeenCalledWith(
+        COMPANY_ID,
+        CLAIM_ID,
+        expect.objectContaining({
+          claimAmount: 2000,
+          retentionAmount: 100,
+          netClaimAmount: 1900,
+          items: expect.arrayContaining([expect.objectContaining({ description: 'Revised scope', amount: 2000 })]),
+        }),
+      );
     });
   });
 
