@@ -12,9 +12,10 @@ import { useCustomers, usePickerProjects, usePickerSubcontractors } from '../../
 import { useBoqLines, useCreateClaim } from '../hooks';
 import type { ClaimItemInput, ClaimType } from '../api';
 
-/** `unitPrice` is reference-only — it drives the auto-computed Amount below but isn't part of ClaimItemInput, so it's stripped before submit (see onSubmit). */
+/** `unitPrice` and `previousPercent` are reference-only — unitPrice drives the auto-computed Amount below, previousPercent shows how much of this BOQ line is already claimed elsewhere so "This Period %" makes sense; neither is part of ClaimItemInput, so both are stripped before submit (see onSubmit). */
 interface ClaimLineRow extends ClaimItemInput {
   unitPrice?: number;
+  previousPercent?: number;
 }
 
 function newItem(): ClaimLineRow {
@@ -26,11 +27,12 @@ function round2(value: number): number {
 }
 
 const COLUMNS: LineItemColumn<ClaimLineRow>[] = [
-  { key: 'description', label: 'Description', type: 'text', width: '32%' },
-  { key: 'contractQuantity', label: 'Qty', type: 'number', min: 0, step: 0.01, width: '13%' },
-  { key: 'unitPrice', label: 'Unit Price ($)', type: 'number', min: 0, step: 0.01, width: '15%' },
-  { key: 'currentPercent', label: 'This Period %', type: 'number', min: 0, step: 0.1, width: '15%' },
-  { key: 'amount', label: 'Amount ($)', type: 'number', min: 0, step: 0.01, width: '15%' },
+  { key: 'description', label: 'Description', type: 'text', width: '28%' },
+  { key: 'contractQuantity', label: 'Qty', type: 'number', min: 0, step: 0.01, width: '11%' },
+  { key: 'unitPrice', label: 'Unit Price ($)', type: 'number', min: 0, step: 0.01, width: '13%' },
+  { key: 'previousPercent', label: 'Already Claimed %', type: 'readonly', width: '12%', suffix: '%' },
+  { key: 'currentPercent', label: 'This Period %', type: 'number', min: 0, step: 0.1, width: '13%' },
+  { key: 'amount', label: 'Amount ($)', type: 'number', min: 0, step: 0.01, width: '13%' },
 ];
 
 export function CreateClaimPage() {
@@ -66,6 +68,7 @@ export function CreateClaimPage() {
           description: line.description,
           contractQuantity: line.quantity,
           unitPrice: line.unitPrice,
+          previousPercent: line.previousPercent,
           currentPercent: 0,
           amount: 0,
         })),
@@ -107,7 +110,7 @@ export function CreateClaimPage() {
         claimPeriodStart,
         claimPeriodEnd,
         retentionPercent: retentionPercent || undefined,
-        items: items.map(({ unitPrice: _unitPrice, ...item }) => item),
+        items: items.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, ...item }) => item),
       });
       navigate(`/claims/${claim.id}`);
     } catch (err) {

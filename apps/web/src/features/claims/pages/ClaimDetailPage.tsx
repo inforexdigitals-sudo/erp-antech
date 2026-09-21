@@ -16,9 +16,10 @@ import { useAuthStore } from '../../../stores/auth-store';
 import { useClaim, useClaimActions } from '../hooks';
 import type { Claim, ClaimItemInput } from '../api';
 
-/** `unitPrice` is reference-only — it drives the auto-computed Amount below but isn't part of ClaimItemInput, so it's stripped before submit. */
+/** `unitPrice` and `previousPercent` are reference-only — unitPrice drives the auto-computed Amount below, previousPercent shows how much of this BOQ line is already claimed elsewhere; neither is part of ClaimItemInput, so both are stripped before submit. */
 interface ClaimLineRow extends ClaimItemInput {
   unitPrice?: number;
+  previousPercent?: number;
 }
 
 function newClaimLine(): ClaimLineRow {
@@ -30,11 +31,12 @@ function round2(value: number): number {
 }
 
 const CLAIM_LINE_COLUMNS: LineItemColumn<ClaimLineRow>[] = [
-  { key: 'description', label: 'Description', type: 'text', width: '32%' },
-  { key: 'contractQuantity', label: 'Qty', type: 'number', min: 0, step: 0.01, width: '13%' },
-  { key: 'unitPrice', label: 'Unit Price ($)', type: 'number', min: 0, step: 0.01, width: '15%' },
-  { key: 'currentPercent', label: 'This Period %', type: 'number', min: 0, step: 0.1, width: '15%' },
-  { key: 'amount', label: 'Amount ($)', type: 'number', min: 0, step: 0.01, width: '15%' },
+  { key: 'description', label: 'Description', type: 'text', width: '28%' },
+  { key: 'contractQuantity', label: 'Qty', type: 'number', min: 0, step: 0.01, width: '11%' },
+  { key: 'unitPrice', label: 'Unit Price ($)', type: 'number', min: 0, step: 0.01, width: '13%' },
+  { key: 'previousPercent', label: 'Already Claimed %', type: 'readonly', width: '12%', suffix: '%' },
+  { key: 'currentPercent', label: 'This Period %', type: 'number', min: 0, step: 0.1, width: '13%' },
+  { key: 'amount', label: 'Amount ($)', type: 'number', min: 0, step: 0.01, width: '13%' },
 ];
 
 function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void }) {
@@ -48,6 +50,7 @@ function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void 
       description: item.description,
       contractQuantity: item.contractQuantity != null ? Number(item.contractQuantity) : undefined,
       unitPrice: item.quotationItem ? Number(item.quotationItem.unitPrice) : undefined,
+      previousPercent: Number(item.previousPercent),
       currentPercent: Number(item.currentPercent),
       amount: Number(item.amount),
     })),
@@ -75,7 +78,7 @@ function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void 
         claimPeriodStart,
         claimPeriodEnd,
         retentionPercent,
-        items: items.map(({ unitPrice: _unitPrice, ...item }) => item),
+        items: items.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, ...item }) => item),
       });
       onClose();
     } catch (err) {

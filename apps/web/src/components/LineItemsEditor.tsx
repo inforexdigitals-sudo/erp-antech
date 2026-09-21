@@ -7,11 +7,14 @@ import { cn } from '../lib/utils';
 export interface LineItemColumn<T> {
   key: keyof T;
   label: string;
-  type: 'text' | 'number' | 'select';
+  /** 'readonly' renders the value as plain text instead of an input — for reference data (e.g. already-claimed %) shown alongside editable fields, not submitted itself. */
+  type: 'text' | 'number' | 'select' | 'readonly';
   options?: readonly string[];
   width?: string;
   min?: number;
   step?: number;
+  /** Appended after a 'readonly' column's value, e.g. '%' — ignored for other column types. */
+  suffix?: string;
 }
 
 /**
@@ -66,7 +69,11 @@ export function LineItemsEditor<T extends object>({
               <Td className="text-center text-muted">{index + 1}</Td>
               {columns.map((col) => (
                 <Td key={String(col.key)} style={col.width ? { width: col.width } : undefined}>
-                  {col.type === 'select' ? (
+                  {col.type === 'readonly' ? (
+                    <span className="text-muted">
+                      {row[col.key] != null ? `${row[col.key] as string | number}${col.suffix ?? ''}` : '—'}
+                    </span>
+                  ) : col.type === 'select' ? (
                     <Select
                       value={String(row[col.key] ?? '')}
                       onChange={(e) => updateRow(index, col.key, e.target.value)}

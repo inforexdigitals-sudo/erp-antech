@@ -306,7 +306,9 @@ export class ClaimsService {
       const cumulativePercent = previousPercent + item.currentPercent;
       if (item.quotationItemId && cumulativePercent > 100) {
         throw new BadRequestException(
-          `Line "${item.description}" would reach ${cumulativePercent}% cumulative — cannot exceed 100%.`,
+          previousPercent > 0
+            ? `Line "${item.description}" already has ${previousPercent}% claimed on a previous certified claim — adding ${item.currentPercent}% here would reach ${cumulativePercent}% cumulative, which exceeds 100%.`
+            : `Line "${item.description}" would reach ${cumulativePercent}% cumulative — cannot exceed 100%.`,
         );
       }
       return {
