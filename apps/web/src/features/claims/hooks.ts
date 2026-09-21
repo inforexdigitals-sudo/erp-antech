@@ -33,6 +33,7 @@ export function useClaimActions(id: string) {
   };
   return {
     update: useMutation({ mutationFn: (input: UpdateClaimInput) => claimsApi.update(id, input), onSuccess: invalidate }),
+    remove: useMutation({ mutationFn: () => claimsApi.remove(id), onSuccess: invalidate }),
     submitForApproval: useMutation({ mutationFn: () => claimsApi.submitForApproval(id), onSuccess: invalidate }),
     certify: useMutation({ mutationFn: () => claimsApi.certify(id), onSuccess: invalidate }),
     reject: useMutation({ mutationFn: () => claimsApi.reject(id), onSuccess: invalidate }),

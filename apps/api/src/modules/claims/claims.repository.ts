@@ -225,6 +225,11 @@ export class ClaimsRepository {
     }));
   }
 
+  /** ClaimItem cascades on delete (onDelete: Cascade — see schema.prisma), so no separate cleanup is needed. Only ever called for a 'draft' claim (ClaimsService.remove enforces that). */
+  async delete(companyId: string, id: string): Promise<void> {
+    await this.prisma.claim.delete({ where: { id, companyId } });
+  }
+
   async updateStatus(
     companyId: string,
     id: string,

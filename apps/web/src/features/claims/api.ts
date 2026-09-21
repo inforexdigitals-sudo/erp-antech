@@ -87,6 +87,7 @@ export const claimsApi = {
   getBoqLines: (projectId: string) => api.get<BoqLine[]>(`/claims/boq-lines/${projectId}`),
   create: (input: CreateClaimInput) => api.post<Claim>('/claims', input),
   update: (id: string, input: UpdateClaimInput) => api.patch<Claim>(`/claims/${id}`, input),
+  remove: (id: string) => api.delete<void>(`/claims/${id}`),
   submitForApproval: (id: string) => api.post<Claim>(`/claims/${id}/submit-for-approval`),
   certify: (id: string) => api.post<Claim>(`/claims/${id}/certify`, {}),
   reject: (id: string) => api.post<Claim>(`/claims/${id}/reject`, {}),

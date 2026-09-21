@@ -49,6 +49,7 @@ export const PERMISSIONS = {
   CLAIM_VIEW: 'claim.view',
   CLAIM_CREATE: 'claim.create',
   CLAIM_EDIT: 'claim.edit',
+  CLAIM_DELETE: 'claim.delete',
   CLAIM_APPROVE: 'claim.approve',
   CLAIM_EXPORT: 'claim.export',
 

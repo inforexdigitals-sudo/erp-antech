@@ -113,6 +113,44 @@ function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void 
   );
 }
 
+function DeleteClaimModal({ claim, onClose, onDeleted }: { claim: Claim; onClose: () => void; onDeleted: () => void }) {
+  const { remove } = useClaimActions(claim.id);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onConfirm() {
+    setError(null);
+    try {
+      await remove.mutateAsync();
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete this claim.');
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Delete ${claim.claimNumber}?`}>
+      <div className="flex flex-col gap-3.5">
+        <p className="text-[13px]">
+          This permanently deletes <strong>{claim.claimNumber}</strong> and its BOQ lines. This can&apos;t be undone.
+        </p>
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button
+            type="button"
+            variant="primary"
+            className="border-critical bg-critical hover:border-critical hover:bg-critical/90"
+            onClick={onConfirm}
+            disabled={remove.isPending}
+          >
+            {remove.isPending ? 'Deleting…' : 'Delete Claim'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function ClaimDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -121,6 +159,7 @@ export function ClaimDetailPage() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const [actionError, setActionError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (isLoading) return <div className="flex justify-center py-12"><Spinner /></div>;
   if (error) return <ErrorNote>{error instanceof ApiError ? error.message : 'Could not load this claim.'}</ErrorNote>;
@@ -146,6 +185,9 @@ export function ClaimDetailPage() {
             {claim.status === 'draft' && (
               <>
                 <Button onClick={() => setEditing(true)}>Edit</Button>
+                {hasPermission('claim.delete') && (
+                  <Button onClick={() => setDeleting(true)} className="text-critical">Delete</Button>
+                )}
                 <Button variant="primary" onClick={() => run(() => actions.submitForApproval.mutateAsync())} disabled={actions.submitForApproval.isPending}>
                   Submit for Approval
                 </Button>
@@ -216,6 +258,9 @@ export function ClaimDetailPage() {
       )}
 
       {editing && <EditClaimModal claim={claim} onClose={() => setEditing(false)} />}
+      {deleting && (
+        <DeleteClaimModal claim={claim} onClose={() => setDeleting(false)} onDeleted={() => navigate('/claims')} />
+      )}
     </div>
   );
 }

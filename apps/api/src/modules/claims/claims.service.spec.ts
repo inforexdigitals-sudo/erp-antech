@@ -42,6 +42,7 @@ describe('ClaimsService', () => {
       | 'getPreviousCumulativePercents'
       | 'getBoqLines'
       | 'update'
+      | 'delete'
       | 'updateStatus'
       | 'tryTransitionStatus'
       | 'createPaymentCertificate'
@@ -62,6 +63,7 @@ describe('ClaimsService', () => {
       getPreviousCumulativePercents: jest.fn().mockResolvedValue(new Map()),
       getBoqLines: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockResolvedValue(makeClaim()),
+      delete: jest.fn(),
       updateStatus: jest.fn(),
       tryTransitionStatus: jest.fn().mockResolvedValue(true),
       createPaymentCertificate: jest.fn(),
@@ -193,6 +195,23 @@ describe('ClaimsService', () => {
           items: expect.arrayContaining([expect.objectContaining({ description: 'Revised scope', amount: 2000 })]),
         }),
       );
+    });
+  });
+
+  describe('remove', () => {
+    it('rejects deleting a claim that is no longer draft', async () => {
+      repository.findById.mockResolvedValue(makeClaim({ status: 'under_review' }) as never);
+
+      await expect(service.remove(COMPANY_ID, CLAIM_ID, USER_ID)).rejects.toThrow(ForbiddenException);
+      expect(repository.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletes a draft claim', async () => {
+      repository.findById.mockResolvedValue(makeClaim() as never);
+
+      await service.remove(COMPANY_ID, CLAIM_ID, USER_ID);
+
+      expect(repository.delete).toHaveBeenCalledWith(COMPANY_ID, CLAIM_ID);
     });
   });
 

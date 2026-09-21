@@ -69,6 +69,20 @@ export class ClaimsService {
     return claim;
   }
 
+  /** Draft-only, same reasoning as update() — nothing downstream (payment certificate, retention, invoice) can exist yet for a claim that's never been certified. */
+  async remove(companyId: string, id: string, actorUserId: string): Promise<void> {
+    const existing = await this.findOne(companyId, id);
+    if (existing.status !== 'draft') {
+      throw new ForbiddenException(
+        `A claim in '${existing.status}' status can't be deleted — only while still draft, before it's submitted for approval.`,
+      );
+    }
+
+    await this.repository.delete(companyId, id);
+
+    await this.audit.record({ companyId, actorUserId, action: 'delete', entityType: 'claim', entityId: id, before: existing });
+  }
+
   /** Prefill data for CreateClaimPage — the project's originating quotation's line items, so a new claim's BOQ Lines don't have to be retyped from scratch every period. */
   async getBoqLines(companyId: string, projectId: string): Promise<BoqLine[]> {
     const project = await this.projects.findById(companyId, projectId);

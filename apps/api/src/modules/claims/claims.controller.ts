@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PERMISSIONS } from '../../common/constants/permissions';
@@ -48,6 +48,13 @@ export class ClaimsController {
   @RequirePermission(PERMISSIONS.CLAIM_EDIT)
   update(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateClaimDto) {
     return this.claims.update(user.companyId, id, user.userId, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermission(PERMISSIONS.CLAIM_DELETE)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.claims.remove(user.companyId, id, user.userId);
   }
 
   @Post(':id/submit-for-approval')
