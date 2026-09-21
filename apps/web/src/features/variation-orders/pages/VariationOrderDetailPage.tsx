@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { DownloadPdfButton } from '../../../components/DownloadPdfButton';
 import { LineItemsEditor, type LineItemColumn } from '../../../components/LineItemsEditor';
 import { PageHeader } from '../../../components/PageHeader';
 import { Button } from '../../../components/ui/Button';
@@ -148,6 +149,11 @@ export function VariationOrderDetailPage() {
         subtitle={`${vo.title} · ${vo.project.name} · ${vo.cause.replace(/_/g, ' ')}`}
         actions={
           <>
+            <DownloadPdfButton
+              path={`/variation-orders/${vo.id}/pdf`}
+              filename={`${vo.voNumber}.pdf`}
+              onError={setActionError}
+            />
             {EDITABLE_STATUSES.includes(vo.status) && (
               <Button onClick={() => setEditing(true)}>Edit</Button>
             )}

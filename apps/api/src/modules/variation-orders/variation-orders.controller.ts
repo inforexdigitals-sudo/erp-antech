@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -9,12 +10,16 @@ import { CreateVariationOrderDto } from './dto/create-variation-order.dto';
 import { CreateVoRevisionDto } from './dto/create-vo-revision.dto';
 import { QueryVariationOrdersDto } from './dto/query-variation-orders.dto';
 import { UpdateVariationOrderDto } from './dto/update-variation-order.dto';
+import { VariationOrderPdfService } from './variation-order-pdf.service';
 import { VariationOrdersService } from './variation-orders.service';
 
 @ApiTags('variation-orders')
 @Controller('variation-orders')
 export class VariationOrdersController {
-  constructor(private readonly variationOrders: VariationOrdersService) {}
+  constructor(
+    private readonly variationOrders: VariationOrdersService,
+    private readonly variationOrderPdf: VariationOrderPdfService,
+  ) {}
 
   @Get()
   @RequirePermission(PERMISSIONS.VARIATION_ORDER_VIEW)
@@ -90,5 +95,21 @@ export class VariationOrdersController {
   @RequirePermission(PERMISSIONS.VARIATION_ORDER_APPROVE)
   recordClientSignOff(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.variationOrders.recordClientSignOff(user.companyId, id, user.userId);
+  }
+
+  /** Full manual @Res() — see QuotationsController.downloadPdf for why passthrough mode isn't used. */
+  @Get(':id/pdf')
+  @RequirePermission(PERMISSIONS.VARIATION_ORDER_EXPORT)
+  async downloadPdf(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { buffer, filename } = await this.variationOrderPdf.generate(user.companyId, id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    res.send(buffer);
   }
 }

@@ -47,6 +47,7 @@ done
 | `0019_purchase_order_rejected_status.sql` | Addendum (found by the TypeScript compiler during Phase 5 review): adds `rejected` to `purchase_orders.status` — a Phase 2 oversight, caught before it could hit a live CHECK constraint |
 | `0023_manual_project_expenses.sql` | Addendum to module 10 (Project Costing): `project_expenses` table + `manual_expense` added to `cost_transactions.source_type`, for logging a one-off material purchase with no PO behind it |
 | `0024_claim_delete_permission.sql` | Addendum to module 8 (Progress Claims): seeds the `claim.delete` permission — 0016 missed it, unlike every other document type's delete action |
+| `0025_variation_order_export_permission.sql` | Addendum: seeds the `variation_order.export` permission for the new Variation Order PDF export, same class of gap 0020 fixed for `purchase_order.export` |
 
 Module 1 (Dashboard) and Module 16 (User Management) have no migration
 of their own — Dashboard is read-only queries over everything above,

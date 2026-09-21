@@ -40,6 +40,7 @@ export const PERMISSIONS = {
   VARIATION_ORDER_CREATE: 'variation_order.create',
   VARIATION_ORDER_EDIT: 'variation_order.edit',
   VARIATION_ORDER_APPROVE: 'variation_order.approve',
+  VARIATION_ORDER_EXPORT: 'variation_order.export',
 
   TIMESHEET_VIEW: 'timesheet.view',
   TIMESHEET_CREATE: 'timesheet.create',
