@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ManualBudgetLineInput, projectCostingApi } from './api';
+import { CreateExpenseInput, ManualBudgetLineInput, projectCostingApi } from './api';
 
 export function useProjectBudget(projectId: string | undefined) {
   return useQuery({
@@ -18,6 +18,14 @@ export function useCostingDashboard(projectId: string | undefined) {
   });
 }
 
+export function useProjectExpenses(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['project-costing', projectId, 'expenses'],
+    queryFn: () => projectCostingApi.listExpenses(projectId!),
+    enabled: !!projectId,
+  });
+}
+
 export function useCostingActions(projectId: string) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ['project-costing', projectId] });
@@ -25,6 +33,10 @@ export function useCostingActions(projectId: string) {
     initFromQuotation: useMutation({ mutationFn: () => projectCostingApi.initFromQuotation(projectId), onSuccess: invalidate }),
     createManualBudget: useMutation({
       mutationFn: (lines: ManualBudgetLineInput[]) => projectCostingApi.createManualBudget(projectId, lines),
+      onSuccess: invalidate,
+    }),
+    createExpense: useMutation({
+      mutationFn: (input: CreateExpenseInput) => projectCostingApi.createExpense(projectId, input),
       onSuccess: invalidate,
     }),
   };

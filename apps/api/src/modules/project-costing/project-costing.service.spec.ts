@@ -10,7 +10,10 @@ const PROJECT_ID = 'project-1';
 describe('CostingService', () => {
   let service: CostingService;
   let repository: jest.Mocked<
-    Pick<ProjectCostingRepository, 'findBudgetByProjectId' | 'createBudget' | 'createCostTransaction' | 'getCostSummary'>
+    Pick<
+      ProjectCostingRepository,
+      'findBudgetByProjectId' | 'createBudget' | 'createCostTransaction' | 'getCostSummary' | 'createExpense' | 'listExpenses'
+    >
   >;
   let projects: jest.Mocked<Pick<ProjectsRepository, 'findById'>>;
   let quotations: jest.Mocked<Pick<QuotationsRepository, 'findById'>>;
@@ -21,6 +24,8 @@ describe('CostingService', () => {
       createBudget: jest.fn(),
       createCostTransaction: jest.fn(),
       getCostSummary: jest.fn().mockResolvedValue([]),
+      createExpense: jest.fn(),
+      listExpenses: jest.fn().mockResolvedValue([]),
     };
     projects = { findById: jest.fn() };
     quotations = { findById: jest.fn() };
@@ -117,7 +122,7 @@ describe('CostingService', () => {
     });
 
     it('computes forecast as committed + actual and variance as budgeted - forecast, per category and in total', async () => {
-      projects.findById.mockResolvedValue({ id: PROJECT_ID } as never);
+      projects.findById.mockResolvedValue({ id: PROJECT_ID, contractValue: 10000 } as never);
       repository.findBudgetByProjectId.mockResolvedValue({
         lines: [{ costCategory: 'material', budgetedAmount: 1000 }],
       } as never);
@@ -135,13 +140,75 @@ describe('CostingService', () => {
     });
 
     it('returns hasBudget: false with all-zero rows for a project with no budget yet', async () => {
-      projects.findById.mockResolvedValue({ id: PROJECT_ID } as never);
+      projects.findById.mockResolvedValue({ id: PROJECT_ID, contractValue: 0 } as never);
       repository.findBudgetByProjectId.mockResolvedValue(null);
 
       const dashboard = await service.getDashboard(COMPANY_ID, PROJECT_ID);
 
       expect(dashboard.hasBudget).toBe(false);
       expect(dashboard.totals).toEqual({ budgeted: 0, committed: 0, actual: 0, forecast: 0, variance: 0 });
+    });
+
+    it('computes contract value, balance (minus committed and actual) and profit (minus actual only)', async () => {
+      projects.findById.mockResolvedValue({ id: PROJECT_ID, contractValue: 10000 } as never);
+      repository.findBudgetByProjectId.mockResolvedValue(null);
+      repository.getCostSummary.mockResolvedValue([
+        { costCategory: 'material', transactionType: 'committed', total: 1500 },
+        { costCategory: 'material', transactionType: 'actual', total: 2000 },
+      ]);
+
+      const dashboard = await service.getDashboard(COMPANY_ID, PROJECT_ID);
+
+      expect(dashboard.contractValue).toBe(10000);
+      expect(dashboard.balance).toBe(10000 - 1500 - 2000);
+      expect(dashboard.profit).toBe(10000 - 2000);
+    });
+  });
+
+  describe('recordExpense', () => {
+    const dto = { description: 'Nuts and bolts', costCategory: 'material' as const, amount: 45.5, expenseDate: '2026-09-20' };
+
+    it('rejects a project that does not belong to the tenant', async () => {
+      projects.findById.mockResolvedValue(null);
+      await expect(service.recordExpense(COMPANY_ID, PROJECT_ID, 'user-1', dto)).rejects.toThrow(NotFoundException);
+      expect(repository.createExpense).not.toHaveBeenCalled();
+    });
+
+    it('creates the expense row and a matching actual cost_transactions row', async () => {
+      projects.findById.mockResolvedValue({ id: PROJECT_ID } as never);
+      repository.createExpense.mockResolvedValue({ id: 'expense-1' } as never);
+
+      await service.recordExpense(COMPANY_ID, PROJECT_ID, 'user-1', dto);
+
+      expect(repository.createExpense).toHaveBeenCalledWith(
+        expect.objectContaining({ companyId: COMPANY_ID, projectId: PROJECT_ID, description: 'Nuts and bolts', amount: 45.5, createdBy: 'user-1' }),
+      );
+      expect(repository.createCostTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          companyId: COMPANY_ID,
+          projectId: PROJECT_ID,
+          costCategory: 'material',
+          transactionType: 'actual',
+          sourceType: 'manual_expense',
+          sourceId: 'expense-1',
+          amount: 45.5,
+        }),
+      );
+    });
+  });
+
+  describe('listExpenses', () => {
+    it('rejects a project that does not belong to the tenant', async () => {
+      projects.findById.mockResolvedValue(null);
+      await expect(service.listExpenses(COMPANY_ID, PROJECT_ID)).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns the repository\'s expense list for a valid project', async () => {
+      projects.findById.mockResolvedValue({ id: PROJECT_ID } as never);
+      const expenses = [{ id: 'expense-1', description: 'Nuts and bolts' }];
+      repository.listExpenses.mockResolvedValue(expenses as never);
+
+      await expect(service.listExpenses(COMPANY_ID, PROJECT_ID)).resolves.toEqual(expenses);
     });
   });
 });

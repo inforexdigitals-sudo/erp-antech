@@ -45,6 +45,7 @@ done
 | `0017_refresh_tokens.sql` | Addendum (added during Phase 5): server-side refresh-token rotation/revocation for Auth |
 | `0018_project_document_numbering.sql` | Addendum (added during Phase 5): adds `project` to the document-numbering CHECK list, for Quotation → Project conversion |
 | `0019_purchase_order_rejected_status.sql` | Addendum (found by the TypeScript compiler during Phase 5 review): adds `rejected` to `purchase_orders.status` — a Phase 2 oversight, caught before it could hit a live CHECK constraint |
+| `0023_manual_project_expenses.sql` | Addendum to module 10 (Project Costing): `project_expenses` table + `manual_expense` added to `cost_transactions.source_type`, for logging a one-off material purchase with no PO behind it |
 
 Module 1 (Dashboard) and Module 16 (User Management) have no migration
 of their own — Dashboard is read-only queries over everything above,

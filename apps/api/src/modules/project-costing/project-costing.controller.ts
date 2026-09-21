@@ -4,6 +4,7 @@ import { PERMISSIONS } from '../../common/constants/permissions';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { AuthenticatedUser } from '../../common/types/auth.types';
+import { CreateExpenseDto } from './dto/create-expense.dto';
 import { CreateManualBudgetDto } from './dto/create-manual-budget.dto';
 import { CostingService } from './project-costing.service';
 
@@ -47,5 +48,21 @@ export class ProjectCostingController {
   @RequirePermission(PERMISSIONS.COSTING_VIEW)
   getDashboard(@CurrentUser() user: AuthenticatedUser, @Param('projectId', ParseUUIDPipe) projectId: string) {
     return this.costing.getDashboard(user.companyId, projectId);
+  }
+
+  @Get('expenses')
+  @RequirePermission(PERMISSIONS.COSTING_VIEW)
+  listExpenses(@CurrentUser() user: AuthenticatedUser, @Param('projectId', ParseUUIDPipe) projectId: string) {
+    return this.costing.listExpenses(user.companyId, projectId);
+  }
+
+  @Post('expenses')
+  @RequirePermission(PERMISSIONS.COSTING_EDIT)
+  recordExpense(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Body() dto: CreateExpenseDto,
+  ) {
+    return this.costing.recordExpense(user.companyId, projectId, user.userId, dto);
   }
 }

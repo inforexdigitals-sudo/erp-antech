@@ -2,11 +2,13 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { CostCategory } from '../../common/constants/cost-category';
 import { ProjectsRepository } from '../projects/projects.repository';
 import { QuotationsRepository } from '../quotations/quotations.repository';
+import { CreateExpenseDto } from './dto/create-expense.dto';
 import { CreateManualBudgetDto } from './dto/create-manual-budget.dto';
 import {
   CreateBudgetLineInput,
   ProjectBudgetWithLines,
   ProjectCostingRepository,
+  ProjectExpenseWithCreator,
   RecordCostTransactionParams,
 } from './project-costing.repository';
 
@@ -23,6 +25,23 @@ export interface CostingDashboard {
   hasBudget: boolean;
   byCategory: CostCategoryDashboardRow[];
   totals: Omit<CostCategoryDashboardRow, 'costCategory'>;
+}
+
+/**
+ * The plain "what am I making on this job" view, sitting alongside the
+ * budget-vs-actual breakdown above rather than replacing it: contract
+ * value is the project's own agreed price (Project.contractValue),
+ * unrelated to the budget captured from a quotation. `balance` is what's
+ * left once money already committed (approved POs not yet delivered) is
+ * set aside too — `profit` only nets out money actually spent so far.
+ * Project-only (there's no single "contract value" to roll up across a
+ * whole company), unlike the base CostingDashboard getCompanyDashboard
+ * also returns.
+ */
+export interface ProjectCostingDashboard extends CostingDashboard {
+  contractValue: number;
+  balance: number;
+  profit: number;
 }
 
 const ALL_CATEGORIES: CostCategory[] = ['material', 'labour', 'equipment', 'subcontractor'];
@@ -97,6 +116,60 @@ export class CostingService {
   }
 
   /**
+   * Logs a one-off cost with no purchase order behind it (buying nuts,
+   * bolts, rod stock and the like) — the one manual entry point into the
+   * cost_transactions ledger everything else writes to automatically.
+   * Both rows are created together: project_expenses for the
+   * human-readable description/date the dashboard has nowhere else to
+   * show, cost_transactions (as 'actual', immediately — there's no
+   * "committed" phase for a purchase that already happened) so it counts
+   * toward the same actual-cost totals as a delivered PO.
+   */
+  async recordExpense(
+    companyId: string,
+    projectId: string,
+    actorUserId: string,
+    dto: CreateExpenseDto,
+  ): Promise<ProjectExpenseWithCreator> {
+    const project = await this.projects.findById(companyId, projectId);
+    if (!project) {
+      throw new NotFoundException('Project not found.');
+    }
+
+    const expenseDate = new Date(dto.expenseDate);
+    const expense = await this.repository.createExpense({
+      companyId,
+      projectId,
+      description: dto.description,
+      costCategory: dto.costCategory,
+      amount: dto.amount,
+      expenseDate,
+      createdBy: actorUserId,
+    });
+
+    await this.record({
+      companyId,
+      projectId,
+      costCategory: dto.costCategory,
+      transactionType: 'actual',
+      sourceType: 'manual_expense',
+      sourceId: expense.id,
+      amount: dto.amount,
+      transactionDate: expenseDate,
+    });
+
+    return expense;
+  }
+
+  async listExpenses(companyId: string, projectId: string): Promise<ProjectExpenseWithCreator[]> {
+    const project = await this.projects.findById(companyId, projectId);
+    if (!project) {
+      throw new NotFoundException('Project not found.');
+    }
+    return this.repository.listExpenses(companyId, projectId);
+  }
+
+  /**
    * The one entry point every cost-producing module writes through
    * (Purchase Orders today; Timesheets and Variation Orders once those
    * exist — see the CostTransaction model's doc comment in
@@ -119,7 +192,7 @@ export class CostingService {
    * anywhere yet. Documented here rather than silently treating ETC as
    * zero and calling it done.
    */
-  async getDashboard(companyId: string, projectId: string): Promise<CostingDashboard> {
+  async getDashboard(companyId: string, projectId: string): Promise<ProjectCostingDashboard> {
     const project = await this.projects.findById(companyId, projectId);
     if (!project) {
       throw new NotFoundException('Project not found.');
@@ -152,7 +225,15 @@ export class CostingService {
       { budgeted: 0, committed: 0, actual: 0, forecast: 0, variance: 0 },
     );
 
-    return { hasBudget: !!budget, byCategory, totals };
+    const contractValue = Number(project.contractValue);
+    return {
+      hasBudget: !!budget,
+      byCategory,
+      totals,
+      contractValue,
+      balance: contractValue - totals.committed - totals.actual,
+      profit: contractValue - totals.actual,
+    };
   }
 
   /** Company-wide variant of getDashboard, for the Dashboard module's FR-1.6 widget — same shape, rolled up across every project instead of one. */

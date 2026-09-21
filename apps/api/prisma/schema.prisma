@@ -120,6 +120,7 @@ model Company {
   documentFolders            DocumentFolder[]
   documents                  Document[]
   importedFiles              ImportedFile[]
+  projectExpenses            ProjectExpense[]
 
   @@map("companies")
 }
@@ -200,6 +201,7 @@ model User {
   uploadedDocumentVersions       DocumentVersion[]
   documentPermissions            DocumentPermission[]
   uploadedProjectImports         ImportedFile[]
+  recordedProjectExpenses        ProjectExpense[]
 
   @@unique([companyId, email])
   @@map("users")
@@ -542,6 +544,7 @@ model Project {
   materialRequests     MaterialRequest[]
   rfqs                 Rfq[]
   importedFiles        ImportedFile[]
+  expenses             ProjectExpense[]
 
   @@unique([companyId, projectNumber])
   @@map("projects")
@@ -718,6 +721,34 @@ model CostTransaction {
   @@index([sourceType, sourceId])
   @@index([companyId, transactionDate])
   @@map("cost_transactions")
+}
+
+// A one-off cost logged directly against a project — buying nuts, bolts,
+// rod stock and the like from a hardware store, with no purchase order
+// behind it. Addendum to module 10 (0023_manual_project_expenses.sql):
+// the only sourceType on CostTransaction that isn't produced by another
+// module's own workflow — CostingService.recordExpense() creates both
+// rows together, this one for the human-readable description/date, the
+// CostTransaction one (transactionType 'actual', sourceType
+// 'manual_expense') so it rolls into the same cost ledger as everything
+// else.
+model ProjectExpense {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  projectId    String   @map("project_id") @db.Uuid
+  description  String
+  costCategory String   @map("cost_category")
+  amount       Decimal  @db.Decimal(18, 2)
+  expenseDate  DateTime @map("expense_date") @db.Date
+  createdBy    String   @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id])
+  creator User    @relation(fields: [createdBy], references: [id])
+
+  @@index([projectId, expenseDate])
+  @@map("project_expenses")
 }
 
 // --------------------------------------------------------------------

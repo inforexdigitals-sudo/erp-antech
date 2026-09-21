@@ -6,6 +6,22 @@ import { BudgetSource, CostTransactionSourceType, CostTransactionType } from './
 
 export type ProjectBudgetWithLines = Prisma.ProjectBudgetGetPayload<{ include: { lines: true } }>;
 
+const expenseWithCreatorInclude = {
+  creator: { select: { id: true, fullName: true } },
+} satisfies Prisma.ProjectExpenseInclude;
+
+export type ProjectExpenseWithCreator = Prisma.ProjectExpenseGetPayload<{ include: typeof expenseWithCreatorInclude }>;
+
+export interface CreateExpenseParams {
+  companyId: string;
+  projectId: string;
+  description: string;
+  costCategory: CostCategory;
+  amount: number;
+  expenseDate: Date;
+  createdBy: string;
+}
+
 export interface CreateBudgetLineInput {
   costCategory: CostCategory;
   description: string;
@@ -60,6 +76,29 @@ export class ProjectCostingRepository {
         lines: { create: lines },
       },
       include: { lines: true },
+    });
+  }
+
+  async createExpense(params: CreateExpenseParams): Promise<ProjectExpenseWithCreator> {
+    return this.prisma.projectExpense.create({
+      data: {
+        companyId: params.companyId,
+        projectId: params.projectId,
+        description: params.description,
+        costCategory: params.costCategory,
+        amount: params.amount,
+        expenseDate: params.expenseDate,
+        createdBy: params.createdBy,
+      },
+      include: expenseWithCreatorInclude,
+    });
+  }
+
+  async listExpenses(companyId: string, projectId: string): Promise<ProjectExpenseWithCreator[]> {
+    return this.prisma.projectExpense.findMany({
+      where: { companyId, projectId },
+      include: expenseWithCreatorInclude,
+      orderBy: { expenseDate: 'desc' },
     });
   }
 
