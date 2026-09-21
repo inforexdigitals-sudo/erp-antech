@@ -26,6 +26,7 @@ export interface CreateUserInput {
 
 export interface UpdateUserInput {
   fullName?: string;
+  email?: string;
   jobTitle?: string;
   phone?: string;
   isActive?: boolean;

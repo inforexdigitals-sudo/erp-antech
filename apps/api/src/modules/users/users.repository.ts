@@ -136,7 +136,7 @@ export class UsersRepository {
   async updateFields(
     companyId: string,
     id: string,
-    data: { fullName?: string; jobTitle?: string; phone?: string; isActive?: boolean },
+    data: { fullName?: string; email?: string; jobTitle?: string; phone?: string; isActive?: boolean },
   ): Promise<User> {
     return this.prisma.user.update({ where: { id, companyId }, data });
   }

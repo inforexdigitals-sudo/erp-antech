@@ -116,6 +116,7 @@ function EditUserModal({ user, roles, onClose }: { user: AdminUser; roles: Role[
   const update = useUpdateUser();
   const currentUserId = useAuthStore((s) => s.profile?.id);
   const [fullName, setFullName] = useState(user.fullName);
+  const [email, setEmail] = useState(user.email);
   const [jobTitle, setJobTitle] = useState(user.jobTitle ?? '');
   const [isActive, setIsActive] = useState(user.isActive);
   const [roleIds, setRoleIds] = useState<Set<string>>(new Set(user.roles.map((r) => r.id)));
@@ -128,7 +129,7 @@ function EditUserModal({ user, roles, onClose }: { user: AdminUser; roles: Role[
     try {
       await update.mutateAsync({
         id: user.id,
-        input: { fullName, jobTitle: jobTitle || undefined, isActive, roleIds: Array.from(roleIds) },
+        input: { fullName, email, jobTitle: jobTitle || undefined, isActive, roleIds: Array.from(roleIds) },
       });
       onClose();
     } catch (err) {
@@ -142,6 +143,9 @@ function EditUserModal({ user, roles, onClose }: { user: AdminUser; roles: Role[
         <div className="grid grid-cols-2 gap-3.5">
           <Field label="Full Name" htmlFor="eu-name">
             <Input id="eu-name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </Field>
+          <Field label="Email" htmlFor="eu-email">
+            <Input id="eu-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
           <Field label="Job Title" htmlFor="eu-title">
             <Input id="eu-title" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />

@@ -107,6 +107,13 @@ export class UsersService {
       }
     }
 
+    if (dto.email) {
+      const existing = await this.repository.findByEmailInCompany(companyId, dto.email);
+      if (existing && existing.id !== id) {
+        throw new BadRequestException('A user with this email already exists.');
+      }
+    }
+
     const { roleIds, ...fields } = dto;
     if (Object.keys(fields).length > 0) {
       await this.repository.updateFields(companyId, id, fields);

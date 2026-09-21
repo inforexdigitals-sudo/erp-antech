@@ -181,5 +181,50 @@ describe('UsersService', () => {
         expect.objectContaining({ before: expect.anything(), after: expect.anything() }),
       );
     });
+
+    it('rejects changing to an email another user in the tenant already has', async () => {
+      repository.findAdminById.mockResolvedValue({
+        id: 'other-user',
+        fullName: 'Someone',
+        email: 'someone@example.com',
+        jobTitle: null,
+        phone: null,
+        isActive: true,
+        userRoles: [],
+      } as never);
+      repository.findByEmailInCompany.mockResolvedValue({ id: 'a-different-user' } as never);
+
+      await expect(
+        service.update(COMPANY_ID, USER_ID, 'other-user', { email: 'taken@example.com' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(repository.updateFields).not.toHaveBeenCalled();
+    });
+
+    it('allows saving an email that already belongs to the same user being edited', async () => {
+      repository.findAdminById
+        .mockResolvedValueOnce({
+          id: 'other-user',
+          fullName: 'Someone',
+          email: 'someone@example.com',
+          jobTitle: null,
+          phone: null,
+          isActive: true,
+          userRoles: [],
+        } as never)
+        .mockResolvedValueOnce({
+          id: 'other-user',
+          fullName: 'Someone',
+          email: 'someone@example.com',
+          jobTitle: null,
+          phone: null,
+          isActive: true,
+          userRoles: [],
+        } as never);
+      repository.findByEmailInCompany.mockResolvedValue({ id: 'other-user' } as never);
+
+      await service.update(COMPANY_ID, USER_ID, 'other-user', { email: 'someone@example.com' });
+
+      expect(repository.updateFields).toHaveBeenCalledWith(COMPANY_ID, 'other-user', { email: 'someone@example.com' });
+    });
   });
 });
