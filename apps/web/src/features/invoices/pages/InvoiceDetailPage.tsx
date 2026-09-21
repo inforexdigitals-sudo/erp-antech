@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { DownloadPdfButton } from '../../../components/DownloadPdfButton';
 import { PageHeader } from '../../../components/PageHeader';
 import { Button } from '../../../components/ui/Button';
@@ -16,6 +16,7 @@ import type { Invoice } from '../api';
 
 function EditInvoiceModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
   const { update } = useInvoiceActions(invoice.id);
+  const [issueDate, setIssueDate] = useState(invoice.issueDate.slice(0, 10));
   const [dueDate, setDueDate] = useState(invoice.dueDate ? invoice.dueDate.slice(0, 10) : '');
   const [taxAmount, setTaxAmount] = useState(Number(invoice.taxAmount));
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +25,7 @@ function EditInvoiceModal({ invoice, onClose }: { invoice: Invoice; onClose: () 
     e.preventDefault();
     setError(null);
     try {
-      await update.mutateAsync({ dueDate: dueDate || undefined, taxAmount });
+      await update.mutateAsync({ issueDate, dueDate: dueDate || undefined, taxAmount });
       onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save these changes.');
@@ -35,12 +36,23 @@ function EditInvoiceModal({ invoice, onClose }: { invoice: Invoice; onClose: () 
     <Modal open onClose={onClose} title={`Edit ${invoice.invoiceNumber}`}>
       <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
         <p className="text-xs text-muted">
-          Only the due date and tax can be changed here — the subtotal is fixed to the certified claim this invoice
-          was created from. To change the billed amount, edit that claim instead.
+          The customer, project and billed amount are fixed to the certified progress claim this invoice was raised
+          from{invoice.claim ? (
+            <>
+              {' '}(<Link to={`/claims/${invoice.claim.id}`} className="text-accent-ink underline">{invoice.claim.claimNumber}</Link>)
+            </>
+          ) : null}{' '}— a certified claim can't be edited, so the only way to change the billed amount is to Void this
+          invoice and raise a new one from a different (or corrected) claim. Issue date, due date and tax can be
+          changed here.
         </p>
-        <Field label="Due Date" htmlFor="ei-due">
-          <Input id="ei-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-        </Field>
+        <div className="grid grid-cols-2 gap-3.5">
+          <Field label="Issue Date" htmlFor="ei-issue">
+            <Input id="ei-issue" type="date" required value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+          </Field>
+          <Field label="Due Date" htmlFor="ei-due">
+            <Input id="ei-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </Field>
+        </div>
         <Field label="Tax Amount" htmlFor="ei-tax">
           <Input id="ei-tax" type="number" min={0} step={0.01} value={taxAmount} onChange={(e) => setTaxAmount(Number(e.target.value))} />
         </Field>

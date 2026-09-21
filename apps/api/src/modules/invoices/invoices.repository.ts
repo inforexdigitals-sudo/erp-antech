@@ -47,10 +47,14 @@ export class InvoicesRepository {
     });
   }
 
-  async update(companyId: string, id: string, params: { dueDate?: Date; taxAmount: number; total: number }): Promise<InvoiceWithDetail> {
+  async update(
+    companyId: string,
+    id: string,
+    params: { issueDate?: Date; dueDate?: Date; taxAmount: number; total: number },
+  ): Promise<InvoiceWithDetail> {
     return this.prisma.invoice.update({
       where: { id },
-      data: { dueDate: params.dueDate, taxAmount: params.taxAmount, total: params.total },
+      data: { issueDate: params.issueDate, dueDate: params.dueDate, taxAmount: params.taxAmount, total: params.total },
       include: invoiceDetailInclude,
     });
   }

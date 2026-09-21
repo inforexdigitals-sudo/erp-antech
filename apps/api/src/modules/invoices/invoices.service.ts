@@ -36,8 +36,11 @@ export class InvoicesService {
       throw new BadRequestException('This claim has no customer on record.');
     }
 
+    // A voided invoice doesn't count as "already has an invoice" — voiding
+    // one is otherwise a dead end, since nothing else clears this claim's
+    // slot for a corrected invoice to be created against it.
     const existing = await this.repository.findByClaimId(companyId, claimId);
-    if (existing) {
+    if (existing && existing.status !== 'void') {
       throw new BadRequestException('This claim already has an invoice.');
     }
 
@@ -92,6 +95,7 @@ export class InvoicesService {
     const taxAmount = dto.taxAmount !== undefined ? round2(dto.taxAmount) : Number(existing.taxAmount);
     const total = round2(Number(existing.subtotal) + taxAmount);
     const updated = await this.repository.update(companyId, id, {
+      issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
       dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
       taxAmount,
       total,

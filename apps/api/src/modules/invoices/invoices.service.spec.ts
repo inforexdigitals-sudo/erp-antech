@@ -80,6 +80,12 @@ describe('InvoicesService', () => {
       await expect(service.createFromClaim(COMPANY_ID, USER_ID, CLAIM_ID, {})).rejects.toThrow(BadRequestException);
     });
 
+    it('allows a new invoice once the claim\'s previous one was voided', async () => {
+      repository.findByClaimId.mockResolvedValue(makeInvoice({ status: 'void' }) as never);
+      await service.createFromClaim(COMPANY_ID, USER_ID, CLAIM_ID, {});
+      expect(repository.create).toHaveBeenCalled();
+    });
+
     it('derives subtotal from the claim net amount and adds tax to compute the total', async () => {
       await service.createFromClaim(COMPANY_ID, USER_ID, CLAIM_ID, { taxAmount: 63 });
 

@@ -29,7 +29,7 @@ export function useInvoiceActions(id: string) {
   };
   return {
     update: useMutation({
-      mutationFn: (input: { dueDate?: string; taxAmount?: number }) => invoicesApi.update(id, input),
+      mutationFn: (input: { issueDate?: string; dueDate?: string; taxAmount?: number }) => invoicesApi.update(id, input),
       onSuccess: invalidate,
     }),
     send: useMutation({ mutationFn: () => invoicesApi.send(id), onSuccess: invalidate }),
