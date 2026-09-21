@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../../common/audit/audit.service';
 import { PaginatedResult, PaginationQueryDto, paginate } from '../../common/dto/pagination.dto';
 import { DocumentNumberingService } from '../../common/numbering/document-numbering.service';
@@ -18,7 +18,7 @@ function round2(value: number): number {
 export class InvoicesService {
   constructor(
     private readonly repository: InvoicesRepository,
-    private readonly claims: ClaimsService,
+    @Inject(forwardRef(() => ClaimsService)) private readonly claims: ClaimsService,
     private readonly numbering: DocumentNumberingService,
     private readonly audit: AuditService,
   ) {}
@@ -144,6 +144,26 @@ export class InvoicesService {
     }
     await this.audit.record({ companyId, actorUserId, action: 'void', entityType: 'invoice', entityId: id });
     return this.findOne(companyId, id);
+  }
+
+  /**
+   * Used only by ClaimsService.remove() when deleting a certified claim —
+   * removes the invoice (and its cascaded payments) raised from it, if
+   * any, so the claim doesn't leave one dangling behind (Invoice.claimId
+   * is onDelete: SetNull, not Cascade — deleting the claim alone would
+   * otherwise leave this invoice orphaned with a null claim reference).
+   * Refuses if real money has already been recorded against it — that's
+   * a receipt, not test data, and shouldn't silently disappear.
+   */
+  async deleteForClaimCleanup(companyId: string, claimId: string): Promise<void> {
+    const invoice = await this.repository.findByClaimId(companyId, claimId);
+    if (!invoice) return;
+    if (Number(invoice.amountPaid) > 0) {
+      throw new ForbiddenException(
+        `Can't delete this claim — its invoice ${invoice.invoiceNumber} has payments recorded against it. Reverse those first.`,
+      );
+    }
+    await this.repository.delete(companyId, invoice.id);
   }
 
   /** FR-13.4's local half (no accounting-system sync exists yet — see apps/api/README.md): records a payment and, once the invoice is fully paid, marks its originating claim paid too. */

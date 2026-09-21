@@ -1,9 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ApprovalService } from '../../common/approval/approval.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { PaginatedResult, PaginationQueryDto, paginate } from '../../common/dto/pagination.dto';
 import { DocumentNumberingService } from '../../common/numbering/document-numbering.service';
 import { CustomersRepository } from '../crm/customers.repository';
+import { InvoicesService } from '../invoices/invoices.service';
 import { CostingService } from '../project-costing/project-costing.service';
 import { ProjectsRepository } from '../projects/projects.repository';
 import { SubcontractorsRepository } from '../subcontractors/subcontractors.repository';
@@ -16,6 +17,9 @@ function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+/** A claim can only be deleted from these statuses — see remove(). */
+const DELETABLE_CLAIM_STATUSES = ['draft', 'certified'];
+
 @Injectable()
 export class ClaimsService {
   constructor(
@@ -26,6 +30,7 @@ export class ClaimsService {
     private readonly numbering: DocumentNumberingService,
     private readonly approval: ApprovalService,
     private readonly costing: CostingService,
+    @Inject(forwardRef(() => InvoicesService)) private readonly invoices: InvoicesService,
     private readonly audit: AuditService,
   ) {}
 
@@ -69,13 +74,35 @@ export class ClaimsService {
     return claim;
   }
 
-  /** Draft-only, same reasoning as update() — nothing downstream (payment certificate, retention, invoice) can exist yet for a claim that's never been certified. */
+  /**
+   * Deletable from 'draft' (nothing downstream exists yet) or 'certified'
+   * — the latter only for cleaning up test/mistaken claims, not as an
+   * ongoing way to erase real certified work: PaymentCertificate and
+   * RetentionRecord cascade automatically (onDelete: Cascade — see
+   * schema.prisma), but a client claim's Invoice does not (SetNull, so
+   * it doesn't vanish just because someone deletes the claim it happened
+   * to be raised from in the normal course of things) and a
+   * subcontractor claim's CostTransaction has no FK at all — both are
+   * cleaned up explicitly here so deleting a certified claim doesn't
+   * leave a dangling invoice or a stale cost-ledger entry behind.
+   * Refuses outright if the claim's invoice already has payments
+   * recorded (see InvoicesService.deleteForClaimCleanup) — that's a real
+   * receipt, not something a cleanup action should be able to erase.
+   * submitted/under_review (an open approval request would be left
+   * dangling) and paid (money has moved) are never deletable.
+   */
   async remove(companyId: string, id: string, actorUserId: string): Promise<void> {
     const existing = await this.findOne(companyId, id);
-    if (existing.status !== 'draft') {
-      throw new ForbiddenException(
-        `A claim in '${existing.status}' status can't be deleted — only while still draft, before it's submitted for approval.`,
-      );
+    if (!DELETABLE_CLAIM_STATUSES.includes(existing.status)) {
+      throw new ForbiddenException(`A claim in '${existing.status}' status can't be deleted.`);
+    }
+
+    if (existing.status === 'certified') {
+      if (existing.claimType === 'client') {
+        await this.invoices.deleteForClaimCleanup(companyId, id);
+      } else {
+        await this.costing.removeBySource(companyId, 'subcontractor_claim', id);
+      }
     }
 
     await this.repository.delete(companyId, id);

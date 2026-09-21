@@ -102,6 +102,11 @@ export class ProjectCostingRepository {
     });
   }
 
+  /** Used only when the thing that produced a cost_transactions row is itself being deleted (e.g. ClaimsService.remove() on a certified subcontractor claim) — CostTransaction.sourceId is a loose reference, not an FK, so nothing cleans this up automatically. */
+  async deleteBySource(companyId: string, sourceType: CostTransactionSourceType, sourceId: string): Promise<void> {
+    await this.prisma.costTransaction.deleteMany({ where: { companyId, sourceType, sourceId } });
+  }
+
   async createCostTransaction(params: RecordCostTransactionParams): Promise<CostTransaction> {
     return this.prisma.costTransaction.create({
       data: {

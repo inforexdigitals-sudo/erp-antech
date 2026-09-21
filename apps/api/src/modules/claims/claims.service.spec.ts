@@ -3,6 +3,7 @@ import { ApprovalService } from '../../common/approval/approval.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { DocumentNumberingService } from '../../common/numbering/document-numbering.service';
 import { CustomersRepository } from '../crm/customers.repository';
+import { InvoicesService } from '../invoices/invoices.service';
 import { CostingService } from '../project-costing/project-costing.service';
 import { ProjectsRepository } from '../projects/projects.repository';
 import { SubcontractorsRepository } from '../subcontractors/subcontractors.repository';
@@ -53,7 +54,8 @@ describe('ClaimsService', () => {
   let customers: jest.Mocked<Pick<CustomersRepository, 'findById'>>;
   let subcontractors: jest.Mocked<Pick<SubcontractorsRepository, 'findById'>>;
   let approval: jest.Mocked<Pick<ApprovalService, 'start' | 'decide' | 'getOpenRequestForEntity'>>;
-  let costing: jest.Mocked<Pick<CostingService, 'record'>>;
+  let costing: jest.Mocked<Pick<CostingService, 'record' | 'removeBySource'>>;
+  let invoices: jest.Mocked<Pick<InvoicesService, 'deleteForClaimCleanup'>>;
 
   beforeEach(() => {
     repository = {
@@ -73,7 +75,8 @@ describe('ClaimsService', () => {
     customers = { findById: jest.fn().mockResolvedValue({ id: 'customer-1' }) };
     subcontractors = { findById: jest.fn().mockResolvedValue({ id: 'sub-1' }) };
     approval = { start: jest.fn(), decide: jest.fn(), getOpenRequestForEntity: jest.fn() };
-    costing = { record: jest.fn() };
+    costing = { record: jest.fn(), removeBySource: jest.fn() };
+    invoices = { deleteForClaimCleanup: jest.fn() };
 
     service = new ClaimsService(
       repository as unknown as ClaimsRepository,
@@ -83,6 +86,7 @@ describe('ClaimsService', () => {
       { allocate: jest.fn().mockResolvedValue('CLM-0001') } as unknown as DocumentNumberingService,
       approval as unknown as ApprovalService,
       costing as unknown as CostingService,
+      invoices as unknown as InvoicesService,
       { record: jest.fn() } as unknown as AuditService,
     );
   });
@@ -206,12 +210,41 @@ describe('ClaimsService', () => {
       expect(repository.delete).not.toHaveBeenCalled();
     });
 
-    it('deletes a draft claim', async () => {
+    it('deletes a draft claim without touching invoices or the cost ledger', async () => {
       repository.findById.mockResolvedValue(makeClaim() as never);
 
       await service.remove(COMPANY_ID, CLAIM_ID, USER_ID);
 
       expect(repository.delete).toHaveBeenCalledWith(COMPANY_ID, CLAIM_ID);
+      expect(invoices.deleteForClaimCleanup).not.toHaveBeenCalled();
+      expect(costing.removeBySource).not.toHaveBeenCalled();
+    });
+
+    it('deletes a certified client claim and cleans up its invoice first', async () => {
+      repository.findById.mockResolvedValue(makeClaim({ status: 'certified', claimType: 'client' }) as never);
+
+      await service.remove(COMPANY_ID, CLAIM_ID, USER_ID);
+
+      expect(invoices.deleteForClaimCleanup).toHaveBeenCalledWith(COMPANY_ID, CLAIM_ID);
+      expect(repository.delete).toHaveBeenCalledWith(COMPANY_ID, CLAIM_ID);
+    });
+
+    it('deletes a certified subcontractor claim and cleans up its cost transaction', async () => {
+      repository.findById.mockResolvedValue(makeClaim({ status: 'certified', claimType: 'subcontractor' }) as never);
+
+      await service.remove(COMPANY_ID, CLAIM_ID, USER_ID);
+
+      expect(costing.removeBySource).toHaveBeenCalledWith(COMPANY_ID, 'subcontractor_claim', CLAIM_ID);
+      expect(invoices.deleteForClaimCleanup).not.toHaveBeenCalled();
+      expect(repository.delete).toHaveBeenCalledWith(COMPANY_ID, CLAIM_ID);
+    });
+
+    it('propagates the invoice-has-payments refusal without deleting the claim', async () => {
+      repository.findById.mockResolvedValue(makeClaim({ status: 'certified', claimType: 'client' }) as never);
+      invoices.deleteForClaimCleanup.mockRejectedValue(new ForbiddenException('has payments'));
+
+      await expect(service.remove(COMPANY_ID, CLAIM_ID, USER_ID)).rejects.toThrow(ForbiddenException);
+      expect(repository.delete).not.toHaveBeenCalled();
     });
   });
 

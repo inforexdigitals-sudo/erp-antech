@@ -116,6 +116,9 @@ function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void 
 function DeleteClaimModal({ claim, onClose, onDeleted }: { claim: Claim; onClose: () => void; onDeleted: () => void }) {
   const { remove } = useClaimActions(claim.id);
   const [error, setError] = useState<string | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const isCertified = claim.status === 'certified';
+  const canConfirm = !isCertified || confirmText === claim.claimNumber;
 
   async function onConfirm() {
     setError(null);
@@ -130,9 +133,24 @@ function DeleteClaimModal({ claim, onClose, onDeleted }: { claim: Claim; onClose
   return (
     <Modal open onClose={onClose} title={`Delete ${claim.claimNumber}?`}>
       <div className="flex flex-col gap-3.5">
-        <p className="text-[13px]">
-          This permanently deletes <strong>{claim.claimNumber}</strong> and its BOQ lines. This can&apos;t be undone.
-        </p>
+        {isCertified ? (
+          <>
+            <p className="text-[13px]">
+              <strong>{claim.claimNumber}</strong> is certified. Deleting it also deletes its{' '}
+              <strong>Payment Certificate{claim.claimType === 'client' ? ' and any invoice raised from it' : ''}</strong>
+              {claim.claimType === 'subcontractor' ? ' and removes it from the project cost ledger' : ''}. This is
+              permanent — there is no undo. (If the invoice already has payments recorded, this will be refused —
+              those need to be reversed first.)
+            </p>
+            <Field label={`Type "${claim.claimNumber}" to confirm`} htmlFor="dc-confirm">
+              <Input id="dc-confirm" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoComplete="off" />
+            </Field>
+          </>
+        ) : (
+          <p className="text-[13px]">
+            This permanently deletes <strong>{claim.claimNumber}</strong> and its BOQ lines. This can&apos;t be undone.
+          </p>
+        )}
         {error && <ErrorNote>{error}</ErrorNote>}
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={onClose}>Cancel</Button>
@@ -141,7 +159,7 @@ function DeleteClaimModal({ claim, onClose, onDeleted }: { claim: Claim; onClose
             variant="primary"
             className="border-critical bg-critical hover:border-critical hover:bg-critical/90"
             onClick={onConfirm}
-            disabled={remove.isPending}
+            disabled={remove.isPending || !canConfirm}
           >
             {remove.isPending ? 'Deleting…' : 'Delete Claim'}
           </Button>
@@ -199,8 +217,15 @@ export function ClaimDetailPage() {
                 <Button onClick={() => run(() => actions.reject.mutateAsync())} disabled={actions.reject.isPending}>Reject</Button>
               </>
             )}
-            {claim.status === 'certified' && claim.claimType === 'client' && hasPermission('accounting.edit') && (
-              <Button variant="primary" onClick={() => navigate(`/invoices/new-from-claim/${claim.id}`)}>Create Invoice</Button>
+            {claim.status === 'certified' && (
+              <>
+                {claim.claimType === 'client' && hasPermission('accounting.edit') && (
+                  <Button variant="primary" onClick={() => navigate(`/invoices/new-from-claim/${claim.id}`)}>Create Invoice</Button>
+                )}
+                {hasPermission('claim.delete') && (
+                  <Button onClick={() => setDeleting(true)} className="text-critical">Delete</Button>
+                )}
+              </>
             )}
           </>
         }

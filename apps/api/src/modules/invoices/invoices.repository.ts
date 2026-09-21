@@ -68,6 +68,11 @@ export class InvoicesRepository {
     return this.prisma.invoice.findFirst({ where: { companyId, claimId } });
   }
 
+  /** Payments cascade (onDelete: Cascade on Payment.invoice — see schema.prisma). Only ever called by ClaimsService.remove() cleaning up a deleted certified claim's invoice. */
+  async delete(companyId: string, id: string): Promise<void> {
+    await this.prisma.invoice.delete({ where: { id, companyId } });
+  }
+
   async list(
     companyId: string,
     query: PaginationQueryDto & { status?: string; projectId?: string; customerId?: string },

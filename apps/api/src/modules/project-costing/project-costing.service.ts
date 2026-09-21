@@ -11,6 +11,7 @@ import {
   ProjectExpenseWithCreator,
   RecordCostTransactionParams,
 } from './project-costing.repository';
+import { CostTransactionSourceType } from './project-costing.types';
 
 export interface CostCategoryDashboardRow {
   costCategory: CostCategory;
@@ -179,6 +180,11 @@ export class CostingService {
   async record(params: RecordCostTransactionParams): Promise<void> {
     if (params.amount === 0) return;
     await this.repository.createCostTransaction(params);
+  }
+
+  /** See ProjectCostingRepository.deleteBySource. */
+  async removeBySource(companyId: string, sourceType: CostTransactionSourceType, sourceId: string): Promise<void> {
+    await this.repository.deleteBySource(companyId, sourceType, sourceId);
   }
 
   /**
