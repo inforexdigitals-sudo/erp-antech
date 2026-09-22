@@ -12,7 +12,16 @@ describe('CostingService', () => {
   let repository: jest.Mocked<
     Pick<
       ProjectCostingRepository,
-      'findBudgetByProjectId' | 'createBudget' | 'createCostTransaction' | 'getCostSummary' | 'createExpense' | 'listExpenses'
+      | 'findBudgetByProjectId'
+      | 'createBudget'
+      | 'createCostTransaction'
+      | 'getCostSummary'
+      | 'createExpense'
+      | 'listExpenses'
+      | 'findExpenseById'
+      | 'updateExpense'
+      | 'deleteExpense'
+      | 'deleteBySource'
     >
   >;
   let projects: jest.Mocked<Pick<ProjectsRepository, 'findById'>>;
@@ -26,6 +35,10 @@ describe('CostingService', () => {
       getCostSummary: jest.fn().mockResolvedValue([]),
       createExpense: jest.fn(),
       listExpenses: jest.fn().mockResolvedValue([]),
+      findExpenseById: jest.fn(),
+      updateExpense: jest.fn(),
+      deleteExpense: jest.fn(),
+      deleteBySource: jest.fn(),
     };
     projects = { findById: jest.fn() };
     quotations = { findById: jest.fn() };
@@ -209,6 +222,66 @@ describe('CostingService', () => {
       repository.listExpenses.mockResolvedValue(expenses as never);
 
       await expect(service.listExpenses(COMPANY_ID, PROJECT_ID)).resolves.toEqual(expenses);
+    });
+  });
+
+  describe('updateExpense', () => {
+    const existing = { id: 'expense-1', costCategory: 'material', amount: 45.5, expenseDate: new Date('2026-09-20') };
+
+    it('throws NotFoundException for an expense outside the tenant/project', async () => {
+      repository.findExpenseById.mockResolvedValue(null);
+      await expect(
+        service.updateExpense(COMPANY_ID, PROJECT_ID, 'expense-1', { amount: 60 }),
+      ).rejects.toThrow(NotFoundException);
+      expect(repository.updateExpense).not.toHaveBeenCalled();
+    });
+
+    it('replaces the cost_transactions row so totals reflect the edited amount/category', async () => {
+      repository.findExpenseById.mockResolvedValue(existing as never);
+      repository.updateExpense.mockResolvedValue({ ...existing, amount: 60, costCategory: 'labour' } as never);
+
+      await service.updateExpense(COMPANY_ID, PROJECT_ID, 'expense-1', { amount: 60, costCategory: 'labour' });
+
+      expect(repository.deleteBySource).toHaveBeenCalledWith(COMPANY_ID, 'manual_expense', 'expense-1');
+      expect(repository.createCostTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          companyId: COMPANY_ID,
+          projectId: PROJECT_ID,
+          costCategory: 'labour',
+          transactionType: 'actual',
+          sourceType: 'manual_expense',
+          sourceId: 'expense-1',
+          amount: 60,
+        }),
+      );
+    });
+
+    it('falls back to the existing amount/category when the dto omits them', async () => {
+      repository.findExpenseById.mockResolvedValue(existing as never);
+      repository.updateExpense.mockResolvedValue(existing as never);
+
+      await service.updateExpense(COMPANY_ID, PROJECT_ID, 'expense-1', { description: 'Updated description' });
+
+      expect(repository.createCostTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({ costCategory: 'material', amount: 45.5 }),
+      );
+    });
+  });
+
+  describe('removeExpense', () => {
+    it('throws NotFoundException for an expense outside the tenant/project', async () => {
+      repository.findExpenseById.mockResolvedValue(null);
+      await expect(service.removeExpense(COMPANY_ID, PROJECT_ID, 'expense-1')).rejects.toThrow(NotFoundException);
+      expect(repository.deleteExpense).not.toHaveBeenCalled();
+    });
+
+    it('deletes the expense row and its cost_transactions entry', async () => {
+      repository.findExpenseById.mockResolvedValue({ id: 'expense-1' } as never);
+
+      await service.removeExpense(COMPANY_ID, PROJECT_ID, 'expense-1');
+
+      expect(repository.deleteExpense).toHaveBeenCalledWith('expense-1');
+      expect(repository.deleteBySource).toHaveBeenCalledWith(COMPANY_ID, 'manual_expense', 'expense-1');
     });
   });
 });

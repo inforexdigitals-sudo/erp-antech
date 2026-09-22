@@ -60,6 +60,8 @@ export interface CreateExpenseInput {
   expenseDate: string;
 }
 
+export type UpdateExpenseInput = Partial<CreateExpenseInput>;
+
 export const projectCostingApi = {
   getBudget: (projectId: string) => api.get<ProjectBudget>(`/projects/${projectId}/budget`),
   getDashboard: (projectId: string) => api.get<ProjectCostingDashboard>(`/projects/${projectId}/costing`),
@@ -69,4 +71,8 @@ export const projectCostingApi = {
   listExpenses: (projectId: string) => api.get<ProjectExpense[]>(`/projects/${projectId}/expenses`),
   createExpense: (projectId: string, input: CreateExpenseInput) =>
     api.post<ProjectExpense>(`/projects/${projectId}/expenses`, input),
+  updateExpense: (projectId: string, expenseId: string, input: UpdateExpenseInput) =>
+    api.patch<ProjectExpense>(`/projects/${projectId}/expenses/${expenseId}`, input),
+  deleteExpense: (projectId: string, expenseId: string) =>
+    api.delete<void>(`/projects/${projectId}/expenses/${expenseId}`),
 };

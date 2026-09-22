@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -6,6 +6,7 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import { AuthenticatedUser } from '../../common/types/auth.types';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { CreateManualBudgetDto } from './dto/create-manual-budget.dto';
+import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { CostingService } from './project-costing.service';
 
 /**
@@ -64,5 +65,26 @@ export class ProjectCostingController {
     @Body() dto: CreateExpenseDto,
   ) {
     return this.costing.recordExpense(user.companyId, projectId, user.userId, dto);
+  }
+
+  @Patch('expenses/:expenseId')
+  @RequirePermission(PERMISSIONS.COSTING_EDIT)
+  updateExpense(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Param('expenseId', ParseUUIDPipe) expenseId: string,
+    @Body() dto: UpdateExpenseDto,
+  ) {
+    return this.costing.updateExpense(user.companyId, projectId, expenseId, dto);
+  }
+
+  @Delete('expenses/:expenseId')
+  @RequirePermission(PERMISSIONS.COSTING_EDIT)
+  removeExpense(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Param('expenseId', ParseUUIDPipe) expenseId: string,
+  ) {
+    return this.costing.removeExpense(user.companyId, projectId, expenseId);
   }
 }

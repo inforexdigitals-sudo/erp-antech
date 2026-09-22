@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreateExpenseInput, ManualBudgetLineInput, projectCostingApi } from './api';
+import { CreateExpenseInput, ManualBudgetLineInput, UpdateExpenseInput, projectCostingApi } from './api';
 
 export function useProjectBudget(projectId: string | undefined) {
   return useQuery({
@@ -37,6 +37,15 @@ export function useCostingActions(projectId: string) {
     }),
     createExpense: useMutation({
       mutationFn: (input: CreateExpenseInput) => projectCostingApi.createExpense(projectId, input),
+      onSuccess: invalidate,
+    }),
+    updateExpense: useMutation({
+      mutationFn: ({ expenseId, input }: { expenseId: string; input: UpdateExpenseInput }) =>
+        projectCostingApi.updateExpense(projectId, expenseId, input),
+      onSuccess: invalidate,
+    }),
+    deleteExpense: useMutation({
+      mutationFn: (expenseId: string) => projectCostingApi.deleteExpense(projectId, expenseId),
       onSuccess: invalidate,
     }),
   };

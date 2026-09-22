@@ -22,6 +22,13 @@ export interface CreateExpenseParams {
   createdBy: string;
 }
 
+export interface UpdateExpenseParams {
+  description?: string;
+  costCategory?: CostCategory;
+  amount?: number;
+  expenseDate?: Date;
+}
+
 export interface CreateBudgetLineInput {
   costCategory: CostCategory;
   description: string;
@@ -100,6 +107,30 @@ export class ProjectCostingRepository {
       include: expenseWithCreatorInclude,
       orderBy: { expenseDate: 'desc' },
     });
+  }
+
+  async findExpenseById(companyId: string, projectId: string, id: string): Promise<ProjectExpenseWithCreator | null> {
+    return this.prisma.projectExpense.findFirst({
+      where: { id, companyId, projectId },
+      include: expenseWithCreatorInclude,
+    });
+  }
+
+  async updateExpense(id: string, params: UpdateExpenseParams): Promise<ProjectExpenseWithCreator> {
+    return this.prisma.projectExpense.update({
+      where: { id },
+      data: {
+        description: params.description,
+        costCategory: params.costCategory,
+        amount: params.amount,
+        expenseDate: params.expenseDate,
+      },
+      include: expenseWithCreatorInclude,
+    });
+  }
+
+  async deleteExpense(id: string): Promise<void> {
+    await this.prisma.projectExpense.delete({ where: { id } });
   }
 
   /** Used only when the thing that produced a cost_transactions row is itself being deleted (e.g. ClaimsService.remove() on a certified subcontractor claim) — CostTransaction.sourceId is a loose reference, not an FK, so nothing cleans this up automatically. */

@@ -4,13 +4,14 @@ import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { EmptyNote, ErrorNote, Spinner } from '../../components/ui/Feedback';
 import { Field, Input } from '../../components/ui/Input';
+import { Modal } from '../../components/ui/Modal';
 import { Select } from '../../components/ui/Select';
 import { DataTable, Td, Th, TableWrap, Tr } from '../../components/ui/Table';
 import { ApiError } from '../../lib/api-client';
 import { formatCurrency, formatDate, toDateInputValue } from '../../lib/utils';
 import { COST_CATEGORIES, CostCategory } from '../shared/constants';
 import { useCostingActions, useCostingDashboard, useProjectBudget, useProjectExpenses } from './hooks';
-import type { CreateExpenseInput, ManualBudgetLineInput, ProjectCostingDashboard } from './api';
+import type { CreateExpenseInput, ManualBudgetLineInput, ProjectCostingDashboard, ProjectExpense } from './api';
 
 function newLine(): ManualBudgetLineInput {
   return { costCategory: 'material', description: '', budgetedAmount: 0 };
@@ -104,12 +105,144 @@ function newExpense(): CreateExpenseInput {
   return { description: '', costCategory: 'material', amount: 0, expenseDate: toDateInputValue(new Date()) };
 }
 
+function EditExpenseModal({
+  projectId,
+  expense,
+  onClose,
+}: {
+  projectId: string;
+  expense: ProjectExpense;
+  onClose: () => void;
+}) {
+  const actions = useCostingActions(projectId);
+  const [draft, setDraft] = useState<CreateExpenseInput>({
+    description: expense.description,
+    costCategory: expense.costCategory,
+    amount: Number(expense.amount),
+    expenseDate: toDateInputValue(expense.expenseDate),
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await actions.updateExpense.mutateAsync({ expenseId: expense.id, input: draft });
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update the expense.');
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Edit Expense">
+      <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
+        <Field label="Description" htmlFor="edit-exp-description">
+          <Input
+            id="edit-exp-description"
+            required
+            value={draft.description}
+            onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+          />
+        </Field>
+        <Field label="Category" htmlFor="edit-exp-category">
+          <Select
+            id="edit-exp-category"
+            value={draft.costCategory}
+            onChange={(e) => setDraft({ ...draft, costCategory: e.target.value as CostCategory })}
+          >
+            {COST_CATEGORIES.map((c) => (
+              <option key={c} value={c} className="capitalize">{c}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Date" htmlFor="edit-exp-date">
+          <Input
+            id="edit-exp-date"
+            type="date"
+            required
+            value={draft.expenseDate}
+            onChange={(e) => setDraft({ ...draft, expenseDate: e.target.value })}
+          />
+        </Field>
+        <Field label="Amount ($)" htmlFor="edit-exp-amount">
+          <Input
+            id="edit-exp-amount"
+            type="number"
+            min={0.01}
+            step={0.01}
+            required
+            value={draft.amount}
+            onChange={(e) => setDraft({ ...draft, amount: Number(e.target.value) })}
+          />
+        </Field>
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" disabled={actions.updateExpense.isPending}>
+            {actions.updateExpense.isPending ? 'Saving…' : 'Save Changes'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function DeleteExpenseModal({
+  projectId,
+  expense,
+  onClose,
+}: {
+  projectId: string;
+  expense: ProjectExpense;
+  onClose: () => void;
+}) {
+  const actions = useCostingActions(projectId);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onConfirm() {
+    setError(null);
+    try {
+      await actions.deleteExpense.mutateAsync(expense.id);
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete this expense.');
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Delete Expense?">
+      <div className="flex flex-col gap-3.5">
+        <p className="text-[13px]">
+          This permanently deletes the expense <strong>{expense.description}</strong> ({formatCurrency(Number(expense.amount))})
+          and removes it from Spent So Far and Profit. This can&apos;t be undone.
+        </p>
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button
+            type="button"
+            variant="primary"
+            className="border-critical bg-critical hover:border-critical hover:bg-critical/90"
+            onClick={onConfirm}
+            disabled={actions.deleteExpense.isPending}
+          >
+            {actions.deleteExpense.isPending ? 'Deleting…' : 'Delete Expense'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function ExpensesSection({ projectId }: { projectId: string }) {
   const expenses = useProjectExpenses(projectId);
   const actions = useCostingActions(projectId);
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<CreateExpenseInput>(newExpense());
   const [error, setError] = useState<string | null>(null);
+  const [editingExpense, setEditingExpense] = useState<ProjectExpense | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState<ProjectExpense | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -198,6 +331,7 @@ function ExpensesSection({ projectId }: { projectId: string }) {
                   <Th>Category</Th>
                   <Th>Added By</Th>
                   <Th numeric>Amount</Th>
+                  <Th></Th>
                 </tr>
               </thead>
               <tbody>
@@ -208,6 +342,16 @@ function ExpensesSection({ projectId }: { projectId: string }) {
                     <Td className="capitalize">{expense.costCategory}</Td>
                     <Td>{expense.creator.fullName}</Td>
                     <Td numeric>{formatCurrency(expense.amount)}</Td>
+                    <Td>
+                      <div className="flex justify-end gap-3">
+                        <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => setEditingExpense(expense)}>
+                          Edit
+                        </button>
+                        <button type="button" className="text-xs text-critical hover:underline" onClick={() => setDeletingExpense(expense)}>
+                          Delete
+                        </button>
+                      </div>
+                    </Td>
                   </Tr>
                 ))}
               </tbody>
@@ -215,6 +359,13 @@ function ExpensesSection({ projectId }: { projectId: string }) {
           </TableWrap>
         )}
       </CardContent>
+
+      {editingExpense && (
+        <EditExpenseModal projectId={projectId} expense={editingExpense} onClose={() => setEditingExpense(null)} />
+      )}
+      {deletingExpense && (
+        <DeleteExpenseModal projectId={projectId} expense={deletingExpense} onClose={() => setDeletingExpense(null)} />
+      )}
     </Card>
   );
 }

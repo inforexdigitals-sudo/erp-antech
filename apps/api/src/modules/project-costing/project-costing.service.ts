@@ -4,6 +4,7 @@ import { ProjectsRepository } from '../projects/projects.repository';
 import { QuotationsRepository } from '../quotations/quotations.repository';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { CreateManualBudgetDto } from './dto/create-manual-budget.dto';
+import { UpdateExpenseDto } from './dto/update-expense.dto';
 import {
   CreateBudgetLineInput,
   ProjectBudgetWithLines,
@@ -168,6 +169,60 @@ export class CostingService {
       throw new NotFoundException('Project not found.');
     }
     return this.repository.listExpenses(companyId, projectId);
+  }
+
+  /**
+   * The cost_transactions row recorded alongside the expense in
+   * recordExpense() isn't itself editable in place — it's replaced
+   * wholesale (delete the old one by source, record a fresh 'actual' with
+   * whatever changed) so a category/amount/date edit stays reflected in
+   * the same Spent So Far / Profit totals the original entry fed into.
+   */
+  async updateExpense(
+    companyId: string,
+    projectId: string,
+    expenseId: string,
+    dto: UpdateExpenseDto,
+  ): Promise<ProjectExpenseWithCreator> {
+    const existing = await this.repository.findExpenseById(companyId, projectId, expenseId);
+    if (!existing) {
+      throw new NotFoundException('Expense not found.');
+    }
+
+    const costCategory = (dto.costCategory ?? existing.costCategory) as CostCategory;
+    const amount = dto.amount ?? Number(existing.amount);
+    const expenseDate = dto.expenseDate ? new Date(dto.expenseDate) : existing.expenseDate;
+
+    const expense = await this.repository.updateExpense(expenseId, {
+      description: dto.description,
+      costCategory: dto.costCategory,
+      amount: dto.amount,
+      expenseDate: dto.expenseDate ? expenseDate : undefined,
+    });
+
+    await this.repository.deleteBySource(companyId, 'manual_expense', expenseId);
+    await this.record({
+      companyId,
+      projectId,
+      costCategory,
+      transactionType: 'actual',
+      sourceType: 'manual_expense',
+      sourceId: expenseId,
+      amount,
+      transactionDate: expenseDate,
+    });
+
+    return expense;
+  }
+
+  async removeExpense(companyId: string, projectId: string, expenseId: string): Promise<void> {
+    const existing = await this.repository.findExpenseById(companyId, projectId, expenseId);
+    if (!existing) {
+      throw new NotFoundException('Expense not found.');
+    }
+
+    await this.repository.deleteExpense(expenseId);
+    await this.repository.deleteBySource(companyId, 'manual_expense', expenseId);
   }
 
   /**
