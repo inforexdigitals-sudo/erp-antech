@@ -88,8 +88,8 @@ export class PaymentCertificatePdfService {
           (item, i) => [
             String(i + 1),
             item.description,
-            item.contractQuantity != null ? `${Number(item.contractQuantity)} ${item.quotationItem?.unit ?? ''}`.trim() : '—',
-            item.quotationItem ? formatMoney(item.quotationItem.unitPrice, currency) : '—',
+            item.contractQuantity != null ? `${Number(item.contractQuantity)} ${(item.quotationItem ?? item.projectBoqItem)?.unit ?? ''}`.trim() : '—',
+            (item.quotationItem ?? item.projectBoqItem) ? formatMoney((item.quotationItem ?? item.projectBoqItem)!.unitPrice, currency) : '—',
             `${Number(item.previousPercent).toFixed(1)}%`,
             `${Number(item.currentPercent).toFixed(1)}%`,
             `${Number(item.cumulativePercent).toFixed(1)}%`,

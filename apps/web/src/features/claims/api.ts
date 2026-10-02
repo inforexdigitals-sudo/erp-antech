@@ -6,6 +6,7 @@ export type ClaimStatus = 'draft' | 'submitted' | 'under_review' | 'certified' |
 export interface ClaimItem {
   id: string;
   quotationItemId: string | null;
+  projectBoqItemId: string | null;
   description: string;
   contractQuantity: string | null;
   previousPercent: string;
@@ -14,6 +15,7 @@ export interface ClaimItem {
   amount: string;
   /** Reference only (for showing/recomputing Amount when editing) — sourced from the linked BOQ line, null for a manually-added item. */
   quotationItem: { unit: string; unitPrice: string } | null;
+  projectBoqItem: { unit: string; unitPrice: string } | null;
 }
 
 export interface Claim {
@@ -38,6 +40,7 @@ export interface Claim {
 
 export interface ClaimItemInput {
   quotationItemId?: string;
+  projectBoqItemId?: string;
   description: string;
   contractQuantity?: number;
   currentPercent: number;
@@ -46,13 +49,22 @@ export interface ClaimItemInput {
 
 /** One line of the project's originating quotation — see GET /claims/boq-lines/:projectId. Used to prefill a new claim's BOQ Lines instead of retyping them every period. */
 export interface BoqLine {
-  quotationItemId: string;
+  /** Exactly one of these two is set — see ClaimsRepository.getBoqLines. */
+  quotationItemId: string | null;
+  projectBoqItemId: string | null;
   description: string;
   unit: string;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
   previousPercent: number;
+}
+
+export interface ProjectBoqLineInput {
+  description: string;
+  unit?: string;
+  quantity: number;
+  unitPrice: number;
 }
 
 export interface CreateClaimInput {
@@ -85,6 +97,8 @@ export const claimsApi = {
   list: (query: QueryClaims) => api.get<PaginatedResult<Claim>>(`/claims${toQueryString(query)}`),
   get: (id: string) => api.get<Claim>(`/claims/${id}`),
   getBoqLines: (projectId: string) => api.get<BoqLine[]>(`/claims/boq-lines/${projectId}`),
+  saveProjectBoq: (projectId: string, lines: ProjectBoqLineInput[]) =>
+    api.put<BoqLine[]>(`/claims/boq-lines/${projectId}`, { lines }),
   create: (input: CreateClaimInput) => api.post<Claim>('/claims', input),
   update: (id: string, input: UpdateClaimInput) => api.patch<Claim>(`/claims/${id}`, input),
   remove: (id: string) => api.delete<void>(`/claims/${id}`),

@@ -42,6 +42,8 @@ describe('ClaimsService', () => {
       | 'list'
       | 'getPreviousCumulativePercents'
       | 'getBoqLines'
+      | 'replaceProjectBoq'
+      | 'countProjectBoqClaimReferences'
       | 'update'
       | 'delete'
       | 'updateStatus'
@@ -64,6 +66,8 @@ describe('ClaimsService', () => {
       list: jest.fn(),
       getPreviousCumulativePercents: jest.fn().mockResolvedValue(new Map()),
       getBoqLines: jest.fn().mockResolvedValue([]),
+      replaceProjectBoq: jest.fn(),
+      countProjectBoqClaimReferences: jest.fn().mockResolvedValue(0),
       update: jest.fn().mockResolvedValue(makeClaim()),
       delete: jest.fn(),
       updateStatus: jest.fn(),
@@ -145,10 +149,38 @@ describe('ClaimsService', () => {
     });
 
     it('returns the repository\'s BOQ lines for a valid project', async () => {
-      const lines = [{ quotationItemId: 'qi-1', description: 'Foundation works', unit: 'm3', quantity: 10, unitPrice: 100, lineTotal: 1000, previousPercent: 0 }];
+      const lines = [{ quotationItemId: 'qi-1', projectBoqItemId: null, description: 'Foundation works', unit: 'm3', quantity: 10, unitPrice: 100, lineTotal: 1000, previousPercent: 0 }];
       repository.getBoqLines.mockResolvedValue(lines);
 
       await expect(service.getBoqLines(COMPANY_ID, 'project-1')).resolves.toEqual(lines);
+    });
+  });
+
+  describe('saveProjectBoq', () => {
+    const dto = { lines: [{ description: 'Pipe 150mm', unit: 'm', quantity: 10, unitPrice: 25 }] };
+
+    it('refuses a project whose BOQ comes from a quotation', async () => {
+      projects.findById.mockResolvedValue({ id: 'project-1', quotationId: 'q-1' } as never);
+      await expect(service.saveProjectBoq(COMPANY_ID, 'project-1', dto)).rejects.toThrow(BadRequestException);
+      expect(repository.replaceProjectBoq).not.toHaveBeenCalled();
+    });
+
+    it('refuses to replace lines claims already reference', async () => {
+      projects.findById.mockResolvedValue({ id: 'project-1', quotationId: null } as never);
+      repository.countProjectBoqClaimReferences.mockResolvedValue(3);
+      await expect(service.saveProjectBoq(COMPANY_ID, 'project-1', dto)).rejects.toThrow(BadRequestException);
+      expect(repository.replaceProjectBoq).not.toHaveBeenCalled();
+    });
+
+    it('saves the lines and returns the resulting BOQ', async () => {
+      projects.findById.mockResolvedValue({ id: 'project-1', quotationId: null } as never);
+
+      await service.saveProjectBoq(COMPANY_ID, 'project-1', dto);
+
+      expect(repository.replaceProjectBoq).toHaveBeenCalledWith(COMPANY_ID, 'project-1', [
+        { description: 'Pipe 150mm', unit: 'm', quantity: 10, unitPrice: 25 },
+      ]);
+      expect(repository.getBoqLines).toHaveBeenCalled();
     });
   });
 

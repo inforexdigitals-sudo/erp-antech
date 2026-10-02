@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { claimsApi, CreateClaimInput, QueryClaims, UpdateClaimInput } from './api';
+import { claimsApi, CreateClaimInput, ProjectBoqLineInput, QueryClaims, UpdateClaimInput } from './api';
 
 export function useClaims(query: QueryClaims) {
   return useQuery({ queryKey: ['claims', query], queryFn: () => claimsApi.list(query) });
@@ -14,6 +14,14 @@ export function useBoqLines(projectId: string | undefined) {
     queryKey: ['claims', 'boq-lines', projectId],
     queryFn: () => claimsApi.getBoqLines(projectId!),
     enabled: !!projectId,
+  });
+}
+
+export function useSaveProjectBoq(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lines: ProjectBoqLineInput[]) => claimsApi.saveProjectBoq(projectId, lines),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['claims', 'boq-lines', projectId] }),
   });
 }
 

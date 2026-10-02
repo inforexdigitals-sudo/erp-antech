@@ -11,6 +11,7 @@ import { SubcontractorsRepository } from '../subcontractors/subcontractors.repos
 import { BoqLine, ClaimItemInput, ClaimWithDetail, ClaimsRepository } from './claims.repository';
 import { ClaimItemInputDto } from './dto/claim-item-input.dto';
 import { CreateClaimDto } from './dto/create-claim.dto';
+import { SaveProjectBoqDto } from './dto/save-project-boq.dto';
 import { UpdateClaimDto } from './dto/update-claim.dto';
 
 function round2(value: number): number {
@@ -108,6 +109,39 @@ export class ClaimsService {
     await this.repository.delete(companyId, id);
 
     await this.audit.record({ companyId, actorUserId, action: 'delete', entityType: 'claim', entityId: id, before: existing });
+  }
+
+  /**
+   * For a project created by hand (no originating quotation), saves the
+   * BOQ the preparer entered/imported once so every later claim loads it
+   * via getBoqLines instead of being retyped. Refused when a quotation
+   * already supplies the BOQ, or when claims already point at the
+   * existing saved lines (replacing them would orphan those links and
+   * wipe the already-claimed % history).
+   */
+  async saveProjectBoq(companyId: string, projectId: string, dto: SaveProjectBoqDto): Promise<BoqLine[]> {
+    const project = await this.projects.findById(companyId, projectId);
+    if (!project) {
+      throw new BadRequestException('Project not found.');
+    }
+    if (project.quotationId) {
+      throw new BadRequestException("This project's BOQ comes from its linked quotation — it can't be replaced here.");
+    }
+    if ((await this.repository.countProjectBoqClaimReferences(companyId, projectId)) > 0) {
+      throw new BadRequestException("Claims already exist against this project's saved BOQ — it can't be replaced.");
+    }
+
+    await this.repository.replaceProjectBoq(
+      companyId,
+      projectId,
+      dto.lines.map((line) => ({
+        description: line.description,
+        unit: line.unit?.trim() || 'unit',
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+      })),
+    );
+    return this.repository.getBoqLines(companyId, projectId);
   }
 
   /** Prefill data for CreateClaimPage — the project's originating quotation's line items, so a new claim's BOQ Lines don't have to be retyped from scratch every period. */
@@ -339,13 +373,14 @@ export class ClaimsService {
    * rather than silently assumed safe.
    */
   private async buildItems(companyId: string, projectId: string, inputs: ClaimItemInputDto[]): Promise<ClaimItemInput[]> {
-    const quotationItemIds = inputs.map((item) => item.quotationItemId).filter((id): id is string => !!id);
-    const previousPercents = await this.repository.getPreviousCumulativePercents(companyId, projectId, quotationItemIds);
+    const boqItemIds = inputs.map((item) => item.quotationItemId ?? item.projectBoqItemId).filter((id): id is string => !!id);
+    const previousPercents = await this.repository.getPreviousCumulativePercents(companyId, projectId, boqItemIds);
 
     return inputs.map((item) => {
-      const previousPercent = item.quotationItemId ? (previousPercents.get(item.quotationItemId) ?? 0) : 0;
+      const boqItemId = item.quotationItemId ?? item.projectBoqItemId;
+      const previousPercent = boqItemId ? (previousPercents.get(boqItemId) ?? 0) : 0;
       const cumulativePercent = previousPercent + item.currentPercent;
-      if (item.quotationItemId && cumulativePercent > 100) {
+      if (boqItemId && cumulativePercent > 100) {
         throw new BadRequestException(
           previousPercent > 0
             ? `Line "${item.description}" already has ${previousPercent}% claimed on a previous certified claim — adding ${item.currentPercent}% here would reach ${cumulativePercent}% cumulative, which exceeds 100%.`
@@ -354,6 +389,7 @@ export class ClaimsService {
       }
       return {
         quotationItemId: item.quotationItemId,
+        projectBoqItemId: item.projectBoqItemId,
         description: item.description,
         contractQuantity: item.contractQuantity,
         previousPercent,

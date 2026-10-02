@@ -47,9 +47,10 @@ function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void 
   const [items, setItems] = useState<ClaimLineRow[]>(
     claim.items.map((item) => ({
       quotationItemId: item.quotationItemId ?? undefined,
+      projectBoqItemId: item.projectBoqItemId ?? undefined,
       description: item.description,
       contractQuantity: item.contractQuantity != null ? Number(item.contractQuantity) : undefined,
-      unitPrice: item.quotationItem ? Number(item.quotationItem.unitPrice) : undefined,
+      unitPrice: (item.quotationItem ?? item.projectBoqItem) ? Number((item.quotationItem ?? item.projectBoqItem)!.unitPrice) : undefined,
       previousPercent: Number(item.previousPercent),
       currentPercent: Number(item.currentPercent),
       amount: Number(item.amount),

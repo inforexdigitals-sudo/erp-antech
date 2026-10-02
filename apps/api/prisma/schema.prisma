@@ -121,6 +121,7 @@ model Company {
   documents                  Document[]
   importedFiles              ImportedFile[]
   projectExpenses            ProjectExpense[]
+  projectBoqItems            ProjectBoqItem[]
 
   @@map("companies")
 }
@@ -545,6 +546,7 @@ model Project {
   rfqs                 Rfq[]
   importedFiles        ImportedFile[]
   expenses             ProjectExpense[]
+  boqItems             ProjectBoqItem[]
 
   @@unique([companyId, projectNumber])
   @@map("projects")
@@ -1203,6 +1205,7 @@ model ClaimItem {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   claimId           String   @map("claim_id") @db.Uuid
   quotationItemId   String?  @map("quotation_item_id") @db.Uuid
+  projectBoqItemId  String?  @map("project_boq_item_id") @db.Uuid
   description       String
   contractQuantity  Decimal? @map("contract_quantity") @db.Decimal(18, 4)
   previousPercent   Decimal  @default(0) @map("previous_percent") @db.Decimal(5, 2)
@@ -1212,8 +1215,32 @@ model ClaimItem {
 
   claim         Claim          @relation(fields: [claimId], references: [id], onDelete: Cascade)
   quotationItem QuotationItem? @relation(fields: [quotationItemId], references: [id], onDelete: SetNull)
+  projectBoqItem ProjectBoqItem? @relation(fields: [projectBoqItemId], references: [id], onDelete: SetNull)
 
   @@map("claim_items")
+}
+
+// A project's own saved BOQ line — for projects with no originating
+// quotation (see 0026_project_boq_items.sql). Claim items link back via
+// ClaimItem.projectBoqItemId, same role quotationItemId plays for
+// quotation-sourced projects.
+model ProjectBoqItem {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  description String
+  unit        String   @default("unit")
+  quantity    Decimal  @default(1) @db.Decimal(18, 4)
+  unitPrice   Decimal  @default(0) @map("unit_price") @db.Decimal(18, 4)
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  claimItems ClaimItem[]
+
+  @@index([projectId, sortOrder])
+  @@map("project_boq_items")
 }
 
 model RetentionRecord {

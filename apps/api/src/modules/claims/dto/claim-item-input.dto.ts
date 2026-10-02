@@ -17,6 +17,10 @@ export class ClaimItemInputDto {
   @IsUUID()
   quotationItemId?: string;
 
+  @IsOptional()
+  @IsUUID()
+  projectBoqItemId?: string;
+
   @IsString()
   @MinLength(1)
   description!: string;

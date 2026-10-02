@@ -5,7 +5,12 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 import { ClaimStatus } from './claim.types';
 
 const claimDetailInclude = {
-  items: { include: { quotationItem: { select: { unit: true, unitPrice: true } } } },
+  items: {
+    include: {
+      quotationItem: { select: { unit: true, unitPrice: true } },
+      projectBoqItem: { select: { unit: true, unitPrice: true } },
+    },
+  },
   project: { select: { id: true, name: true, projectNumber: true } },
   customer: { select: { id: true, name: true } },
   subcontractor: { select: { id: true, name: true } },
@@ -19,6 +24,7 @@ export type ClaimWithDetail = Prisma.ClaimGetPayload<{ include: typeof claimDeta
 
 export interface ClaimItemInput {
   quotationItemId?: string;
+  projectBoqItemId?: string;
   description: string;
   contractQuantity?: number;
   previousPercent: number;
@@ -29,7 +35,9 @@ export interface ClaimItemInput {
 
 /** One line of the project's originating quotation, offered as a starting point for a new claim's items — see ClaimsRepository.getBoqLines. */
 export interface BoqLine {
-  quotationItemId: string;
+  /** Exactly one of quotationItemId / projectBoqItemId is set — which one depends on whether the project came from a quotation or keeps its own saved BOQ. */
+  quotationItemId: string | null;
+  projectBoqItemId: string | null;
   description: string;
   unit: string;
   quantity: number;
@@ -158,13 +166,13 @@ export class ClaimsRepository {
   async getPreviousCumulativePercents(
     companyId: string,
     projectId: string,
-    quotationItemIds: string[],
+    boqItemIds: string[],
   ): Promise<Map<string, number>> {
-    if (quotationItemIds.length === 0) return new Map();
+    if (boqItemIds.length === 0) return new Map();
 
     const items = await this.prisma.claimItem.findMany({
       where: {
-        quotationItemId: { in: quotationItemIds },
+        OR: [{ quotationItemId: { in: boqItemIds } }, { projectBoqItemId: { in: boqItemIds } }],
         claim: { companyId, projectId, status: { in: ['certified', 'paid'] } },
       },
       include: { claim: { select: { certifiedAt: true } } },
@@ -172,13 +180,11 @@ export class ClaimsRepository {
 
     const latest = new Map<string, { certifiedAt: Date; cumulativePercent: number }>();
     for (const item of items) {
-      if (!item.quotationItemId || !item.claim.certifiedAt) continue;
-      const existing = latest.get(item.quotationItemId);
+      const key = item.quotationItemId ?? item.projectBoqItemId;
+      if (!key || !item.claim.certifiedAt) continue;
+      const existing = latest.get(key);
       if (!existing || item.claim.certifiedAt > existing.certifiedAt) {
-        latest.set(item.quotationItemId, {
-          certifiedAt: item.claim.certifiedAt,
-          cumulativePercent: Number(item.cumulativePercent),
-        });
+        latest.set(key, { certifiedAt: item.claim.certifiedAt, cumulativePercent: Number(item.cumulativePercent) });
       }
     }
     return new Map([...latest.entries()].map(([id, v]) => [id, v.cumulativePercent]));
@@ -209,20 +215,58 @@ export class ClaimsRepository {
         },
       },
     });
-    const items = project?.quotation?.currentRevision?.items ?? [];
-    if (items.length === 0) return [];
+    const quotationItems = project?.quotation?.currentRevision?.items ?? [];
+    if (quotationItems.length > 0) {
+      const previousPercents = await this.getPreviousCumulativePercents(companyId, projectId, quotationItems.map((item) => item.id));
+      return quotationItems.map((item) => ({
+        quotationItemId: item.id,
+        projectBoqItemId: null,
+        description: item.description,
+        unit: item.unit,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+        lineTotal: Number(item.lineTotal),
+        previousPercent: previousPercents.get(item.id) ?? 0,
+      }));
+    }
 
-    const previousPercents = await this.getPreviousCumulativePercents(companyId, projectId, items.map((item) => item.id));
+    const ownItems = await this.prisma.projectBoqItem.findMany({
+      where: { companyId, projectId },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    if (ownItems.length === 0) return [];
 
-    return items.map((item) => ({
-      quotationItemId: item.id,
+    const previousPercents = await this.getPreviousCumulativePercents(companyId, projectId, ownItems.map((item) => item.id));
+    return ownItems.map((item) => ({
+      quotationItemId: null,
+      projectBoqItemId: item.id,
       description: item.description,
       unit: item.unit,
       quantity: Number(item.quantity),
       unitPrice: Number(item.unitPrice),
-      lineTotal: Number(item.lineTotal),
+      lineTotal: Number(item.quantity) * Number(item.unitPrice),
       previousPercent: previousPercents.get(item.id) ?? 0,
     }));
+  }
+
+  /** Replaces a project's own saved BOQ wholesale. ClaimsService.saveProjectBoq guards against replacing lines claims already reference. */
+  async replaceProjectBoq(
+    companyId: string,
+    projectId: string,
+    lines: Array<{ description: string; unit: string; quantity: number; unitPrice: number }>,
+  ): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.projectBoqItem.deleteMany({ where: { companyId, projectId } }),
+      this.prisma.projectBoqItem.createMany({
+        data: lines.map((line, index) => ({ ...line, companyId, projectId, sortOrder: index })),
+      }),
+    ]);
+  }
+
+  async countProjectBoqClaimReferences(companyId: string, projectId: string): Promise<number> {
+    return this.prisma.claimItem.count({
+      where: { projectBoqItemId: { not: null }, claim: { companyId, projectId } },
+    });
   }
 
   /** ClaimItem cascades on delete (onDelete: Cascade — see schema.prisma), so no separate cleanup is needed. Only ever called for a 'draft' claim (ClaimsService.remove enforces that). */

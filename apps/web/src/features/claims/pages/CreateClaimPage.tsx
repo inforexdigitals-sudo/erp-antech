@@ -1,21 +1,24 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LineItemsEditor, type LineItemColumn } from '../../../components/LineItemsEditor';
 import { PageHeader } from '../../../components/PageHeader';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent } from '../../../components/ui/Card';
-import { ErrorNote } from '../../../components/ui/Feedback';
+import { ErrorNote, Spinner } from '../../../components/ui/Feedback';
 import { Field, Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { ApiError } from '../../../lib/api-client';
 import { useCustomers, usePickerProjects, usePickerSubcontractors } from '../../shared/hooks';
-import { useBoqLines, useCreateClaim } from '../hooks';
+import { useImportQuotationItems } from '../../quotations/hooks';
+import { useBoqLines, useCreateClaim, useSaveProjectBoq } from '../hooks';
 import type { ClaimItemInput, ClaimType } from '../api';
 
 /** `unitPrice` and `previousPercent` are reference-only — unitPrice drives the auto-computed Amount below, previousPercent shows how much of this BOQ line is already claimed elsewhere so "This Period %" makes sense; neither is part of ClaimItemInput, so both are stripped before submit (see onSubmit). */
 interface ClaimLineRow extends ClaimItemInput {
   unitPrice?: number;
   previousPercent?: number;
+  /** Only used when saving the lines as the project's BOQ (see onSubmit) - never sent with the claim itself. */
+  unit?: string;
 }
 
 function newItem(): ClaimLineRow {
@@ -41,6 +44,8 @@ export function CreateClaimPage() {
   const customers = useCustomers();
   const subcontractors = usePickerSubcontractors();
   const create = useCreateClaim();
+  const importItems = useImportQuotationItems();
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const [projectId, setProjectId] = useState('');
   const [claimType, setClaimType] = useState<ClaimType>('client');
@@ -51,8 +56,15 @@ export function CreateClaimPage() {
   const [retentionPercent, setRetentionPercent] = useState(5);
   const [items, setItems] = useState<ClaimLineRow[]>([newItem()]);
   const [error, setError] = useState<string | null>(null);
+  const [importNote, setImportNote] = useState<string | null>(null);
+  const [saveBoq, setSaveBoq] = useState(true);
 
   const boqLines = useBoqLines(projectId || undefined);
+  const saveProjectBoq = useSaveProjectBoq(projectId);
+  // A project with no BOQ on file yet (no quotation, nothing saved before) - the only case where lines entered by hand can also be remembered for next time.
+  const needsBoq = !!projectId && !!boqLines.data && boqLines.data.length === 0;
+  // Set once this form's lines have been saved as the project's BOQ, so a retry after a failed Create doesn't try to save them a second time.
+  const boqSaved = useRef(false);
   // Guards against re-applying the same project's BOQ on every render, while
   // still re-applying when the project actually changes (including back to
   // one already fetched, since react-query would resolve that instantly).
@@ -64,7 +76,8 @@ export function CreateClaimPage() {
     if (boqLines.data.length > 0) {
       setItems(
         boqLines.data.map((line) => ({
-          quotationItemId: line.quotationItemId,
+          quotationItemId: line.quotationItemId ?? undefined,
+          projectBoqItemId: line.projectBoqItemId ?? undefined,
           description: line.description,
           contractQuantity: line.quantity,
           unitPrice: line.unitPrice,
@@ -79,7 +92,37 @@ export function CreateClaimPage() {
   function onProjectChange(nextProjectId: string) {
     setProjectId(nextProjectId);
     loadedForProjectId.current = null;
+    boqSaved.current = false;
+    setImportNote(null);
     setItems([newItem()]);
+  }
+
+  async function onImportFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setImportNote(null);
+    try {
+      const imported = await importItems.mutateAsync(file);
+      if (imported.length === 0) {
+        setError("Couldn't find any line items in that file - check it has a Description column with rows below it.");
+        return;
+      }
+      const rows: ClaimLineRow[] = imported.map((line) => ({
+        description: line.description,
+        unit: line.unit,
+        contractQuantity: line.quantity,
+        unitPrice: line.unitPrice,
+        currentPercent: 0,
+        amount: 0,
+      }));
+      setItems((current) => [...current.filter((item) => item.description.trim()), ...rows]);
+      setImportNote(`Imported ${rows.length} line${rows.length === 1 ? '' : 's'} from ${file.name} - review, then set This Period % per line.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not read that file.');
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
   }
 
   function onItemsChange(next: ClaimLineRow[]) {
@@ -102,6 +145,27 @@ export function CreateClaimPage() {
     e.preventDefault();
     setError(null);
     try {
+      let claimItems = items;
+      if (needsBoq && saveBoq && !boqSaved.current) {
+        const toSave = items.filter((item) => item.description.trim());
+        if (toSave.length === 0) {
+          setError('Add at least one line with a description.');
+          return;
+        }
+        const saved = await saveProjectBoq.mutateAsync(
+          toSave.map((item) => ({
+            description: item.description.trim(),
+            unit: item.unit,
+            quantity: item.contractQuantity ?? 1,
+            unitPrice: item.unitPrice ?? 0,
+          })),
+        );
+        // Same order in, same order out - link each claim line to the BOQ line just created for it.
+        claimItems = toSave.map((item, i) => ({ ...item, projectBoqItemId: saved[i]?.projectBoqItemId ?? undefined }));
+        boqSaved.current = true;
+        setItems(claimItems);
+      }
+
       const claim = await create.mutateAsync({
         projectId,
         claimType,
@@ -110,7 +174,7 @@ export function CreateClaimPage() {
         claimPeriodStart,
         claimPeriodEnd,
         retentionPercent: retentionPercent || undefined,
-        items: items.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, ...item }) => item),
+        items: claimItems.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, unit: _unit, ...item }) => item),
       });
       navigate(`/claims/${claim.id}`);
     } catch (err) {
@@ -168,7 +232,25 @@ export function CreateClaimPage() {
 
         <Card>
           <CardContent className="flex flex-col gap-3">
-            <h3 className="text-[13.5px] font-semibold">BOQ Lines</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-[13.5px] font-semibold">BOQ Lines</h3>
+              {needsBoq && (
+                <div className="flex items-center gap-2">
+                  {importItems.isPending && <Spinner />}
+                  <Button type="button" size="sm" onClick={() => importInputRef.current?.click()} disabled={importItems.isPending}>
+                    Import from PDF or Excel
+                  </Button>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".pdf,.xlsx,.xls,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    onChange={onImportFile}
+                    className="hidden"
+                  />
+                </div>
+              )}
+            </div>
+            {importNote && <p className="text-xs text-muted">{importNote}</p>}
             <p className="text-xs text-muted">
               {!projectId
                 ? 'Select a project above to pull in its quoted BOQ lines automatically.'
@@ -176,9 +258,15 @@ export function CreateClaimPage() {
                   ? 'Loading BOQ lines from the project…'
                   : boqLines.data && boqLines.data.length > 0
                     ? 'Lines are pre-filled from the project\'s quotation — adjust Qty, Unit Price or This Period % as needed, or add extra lines manually. Amount is calculated automatically.'
-                    : 'This project has no linked quotation to pull BOQ lines from — add lines manually below.'}
+                    : 'This project has no BOQ saved yet — enter the lines below (or import them from a PDF/Excel file).'}
             </p>
             <LineItemsEditor items={items} onChange={onItemsChange} columns={COLUMNS} newRow={newItem} />
+            {needsBoq && (
+              <label className="flex items-center gap-2 text-[13px]">
+                <input type="checkbox" checked={saveBoq} onChange={(e) => setSaveBoq(e.target.checked)} />
+                Save these lines as this project&apos;s BOQ - future claims will load them automatically
+              </label>
+            )}
             <div className="ml-auto flex max-w-[260px] flex-col gap-1 text-[13px]">
               <div className="flex justify-between"><span className="text-muted">Claim Amount</span><span className="num">${claimAmount.toFixed(2)}</span></div>
               <div className="flex justify-between"><span className="text-muted">Retention</span><span className="num">-${retentionAmount.toFixed(2)}</span></div>
@@ -190,7 +278,7 @@ export function CreateClaimPage() {
         {error && <ErrorNote>{error}</ErrorNote>}
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={() => navigate('/claims')}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={create.isPending || !projectId}>
+          <Button type="submit" variant="primary" disabled={create.isPending || saveProjectBoq.isPending || !projectId}>
             {create.isPending ? 'Creating…' : 'Create Claim'}
           </Button>
         </div>

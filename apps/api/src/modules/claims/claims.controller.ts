@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PERMISSIONS } from '../../common/constants/permissions';
@@ -9,6 +9,7 @@ import { AuthenticatedUser } from '../../common/types/auth.types';
 import { ClaimsService } from './claims.service';
 import { CreateClaimDto } from './dto/create-claim.dto';
 import { QueryClaimsDto } from './dto/query-claims.dto';
+import { SaveProjectBoqDto } from './dto/save-project-boq.dto';
 import { UpdateClaimDto } from './dto/update-claim.dto';
 import { PaymentCertificatePdfService } from './payment-certificate-pdf.service';
 
@@ -30,6 +31,16 @@ export class ClaimsController {
   @RequirePermission(PERMISSIONS.CLAIM_CREATE)
   getBoqLines(@CurrentUser() user: AuthenticatedUser, @Param('projectId', ParseUUIDPipe) projectId: string) {
     return this.claims.getBoqLines(user.companyId, projectId);
+  }
+
+  @Put('boq-lines/:projectId')
+  @RequirePermission(PERMISSIONS.CLAIM_CREATE)
+  saveProjectBoq(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Body() dto: SaveProjectBoqDto,
+  ) {
+    return this.claims.saveProjectBoq(user.companyId, projectId, dto);
   }
 
   @Get(':id')
