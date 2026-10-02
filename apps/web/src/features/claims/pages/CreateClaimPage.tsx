@@ -9,7 +9,8 @@ import { Field, Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { ApiError } from '../../../lib/api-client';
 import { useCustomers, usePickerProjects, usePickerSubcontractors } from '../../shared/hooks';
-import { useImportQuotationItems } from '../../quotations/hooks';
+import { quotationsApi } from '../../quotations/api';
+import { useImportQuotationItems, useQuotations } from '../../quotations/hooks';
 import { useBoqLines, useCreateClaim, useSaveProjectBoq } from '../hooks';
 import type { ClaimItemInput, ClaimType } from '../api';
 
@@ -46,6 +47,8 @@ export function CreateClaimPage() {
   const create = useCreateClaim();
   const importItems = useImportQuotationItems();
   const importInputRef = useRef<HTMLInputElement>(null);
+  const quotations = useQuotations({ pageSize: 100 });
+  const [loadingQuotation, setLoadingQuotation] = useState(false);
 
   const [projectId, setProjectId] = useState('');
   const [claimType, setClaimType] = useState<ClaimType>('client');
@@ -95,6 +98,37 @@ export function CreateClaimPage() {
     boqSaved.current = false;
     setImportNote(null);
     setItems([newItem()]);
+  }
+
+  // For a project that wasn't created through "Convert to Project" (so it has no linked quotation) but whose quotation does exist: copy that quotation's lines in.
+  async function onLoadFromQuotation(quotationId: string) {
+    if (!quotationId) return;
+    setError(null);
+    setImportNote(null);
+    setLoadingQuotation(true);
+    try {
+      const quotation = await quotationsApi.get(quotationId);
+      const quoteItems = quotation.currentRevision?.items ?? [];
+      if (quoteItems.length === 0) {
+        setError(`${quotation.quotationNumber} has no priced line items to load.`);
+        return;
+      }
+      setItems(
+        quoteItems.map((item) => ({
+          description: item.description,
+          unit: item.unit,
+          contractQuantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          currentPercent: 0,
+          amount: 0,
+        })),
+      );
+      setImportNote(`Loaded ${quoteItems.length} lines from ${quotation.quotationNumber} - set This Period % per line.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not load that quotation.');
+    } finally {
+      setLoadingQuotation(false);
+    }
   }
 
   async function onImportFile(e: ChangeEvent<HTMLInputElement>) {
@@ -236,7 +270,21 @@ export function CreateClaimPage() {
               <h3 className="text-[13.5px] font-semibold">BOQ Lines</h3>
               {needsBoq && (
                 <div className="flex items-center gap-2">
-                  {importItems.isPending && <Spinner />}
+                  {(importItems.isPending || loadingQuotation) && <Spinner />}
+                  <Select
+                    value=""
+                    onChange={(e) => onLoadFromQuotation(e.target.value)}
+                    disabled={loadingQuotation}
+                    className="max-w-[260px] py-[5px] text-xs"
+                    aria-label="Load lines from a quotation"
+                  >
+                    <option value="">Load lines from a quotation…</option>
+                    {quotations.data?.data
+                      .filter((q) => q.status !== 'rejected' && q.status !== 'expired')
+                      .map((q) => (
+                        <option key={q.id} value={q.id}>{q.quotationNumber} — {q.title}</option>
+                      ))}
+                  </Select>
                   <Button type="button" size="sm" onClick={() => importInputRef.current?.click()} disabled={importItems.isPending}>
                     Import from PDF or Excel
                   </Button>
@@ -258,7 +306,7 @@ export function CreateClaimPage() {
                   ? 'Loading BOQ lines from the project…'
                   : boqLines.data && boqLines.data.length > 0
                     ? 'Lines are pre-filled from the project\'s quotation — adjust Qty, Unit Price or This Period % as needed, or add extra lines manually. Amount is calculated automatically.'
-                    : 'This project has no BOQ saved yet — enter the lines below (or import them from a PDF/Excel file).'}
+                    : 'This project has no BOQ saved yet — load its lines from a quotation, import them from a PDF/Excel file, or type them below.'}
             </p>
             <LineItemsEditor items={items} onChange={onItemsChange} columns={COLUMNS} newRow={newItem} />
             {needsBoq && (
