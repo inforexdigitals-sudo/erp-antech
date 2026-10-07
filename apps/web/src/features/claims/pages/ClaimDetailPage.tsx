@@ -13,6 +13,7 @@ import { DataTable, Td, Th, TableWrap, Tr } from '../../../components/ui/Table';
 import { ApiError } from '../../../lib/api-client';
 import { formatCurrency, formatDate, toDateInputValue } from '../../../lib/utils';
 import { useAuthStore } from '../../../stores/auth-store';
+import { recalcClaimRow } from '../line-calc';
 import { useClaim, useClaimActions } from '../hooks';
 import type { Claim, ClaimItemInput } from '../api';
 
@@ -20,23 +21,22 @@ import type { Claim, ClaimItemInput } from '../api';
 interface ClaimLineRow extends ClaimItemInput {
   unitPrice?: number;
   previousPercent?: number;
+  /** Quantity done this period - a typing convenience (see recalcClaimRow), stripped before submit. */
+  periodQty?: number;
 }
 
 function newClaimLine(): ClaimLineRow {
   return { description: '', currentPercent: 0, amount: 0 };
 }
 
-function round2(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
-}
-
 const CLAIM_LINE_COLUMNS: LineItemColumn<ClaimLineRow>[] = [
-  { key: 'description', label: 'Description', type: 'text', width: '28%' },
-  { key: 'contractQuantity', label: 'Qty', type: 'number', min: 0, step: 0.01, width: '11%' },
-  { key: 'unitPrice', label: 'Unit Price ($)', type: 'number', min: 0, step: 0.01, width: '13%' },
-  { key: 'previousPercent', label: 'Already Claimed %', type: 'readonly', width: '12%', suffix: '%' },
-  { key: 'currentPercent', label: 'This Period %', type: 'number', min: 0, step: 0.1, width: '13%' },
-  { key: 'amount', label: 'Amount ($)', type: 'number', min: 0, step: 0.01, width: '13%' },
+  { key: 'description', label: 'Description', type: 'text', width: '25%' },
+  { key: 'contractQuantity', label: 'Qty', type: 'number', min: 0, step: 0.01, width: '9%' },
+  { key: 'unitPrice', label: 'Unit Price ($)', type: 'number', min: 0, step: 0.01, width: '11%' },
+  { key: 'previousPercent', label: 'Already Claimed %', type: 'readonly', width: '10%', suffix: '%' },
+  { key: 'periodQty', label: 'This Period Qty', type: 'number', min: 0, step: 0.01, width: '12%' },
+  { key: 'currentPercent', label: 'This Period %', type: 'number', min: 0, step: 0.1, width: '11%' },
+  { key: 'amount', label: 'Amount ($)', type: 'number', min: 0, step: 0.01, width: '12%' },
 ];
 
 function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void }) {
@@ -52,6 +52,10 @@ function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void 
       contractQuantity: item.contractQuantity != null ? Number(item.contractQuantity) : undefined,
       unitPrice: (item.quotationItem ?? item.projectBoqItem) ? Number((item.quotationItem ?? item.projectBoqItem)!.unitPrice) : undefined,
       previousPercent: Number(item.previousPercent),
+      periodQty:
+        item.contractQuantity != null
+          ? Math.round(Number(item.contractQuantity) * Number(item.currentPercent) * 100) / 10000
+          : undefined,
       currentPercent: Number(item.currentPercent),
       amount: Number(item.amount),
     })),
@@ -59,16 +63,7 @@ function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void 
   const [error, setError] = useState<string | null>(null);
 
   function onItemsChange(next: ClaimLineRow[]) {
-    setItems(
-      next.map((row, i) => {
-        const prev = items[i];
-        const amountEditedDirectly = prev && row.amount !== prev.amount;
-        if (!amountEditedDirectly && row.contractQuantity != null && row.unitPrice != null) {
-          return { ...row, amount: round2(row.contractQuantity * row.unitPrice * (row.currentPercent / 100)) };
-        }
-        return row;
-      }),
-    );
+    setItems(next.map((row, i) => recalcClaimRow(items[i], row)));
   }
 
   async function onSubmit(e: FormEvent) {
@@ -79,7 +74,7 @@ function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void 
         claimPeriodStart,
         claimPeriodEnd,
         retentionPercent,
-        items: items.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, ...item }) => item),
+        items: items.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, periodQty: _periodQty, ...item }) => item),
       });
       onClose();
     } catch (err) {
