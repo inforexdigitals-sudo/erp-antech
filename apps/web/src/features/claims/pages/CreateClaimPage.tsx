@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { LineItemsEditor, type LineItemColumn } from '../../../components/LineItemsEditor';
 import { PageHeader } from '../../../components/PageHeader';
 import { Button } from '../../../components/ui/Button';
@@ -12,6 +13,7 @@ import { useCustomers, usePickerProjects, usePickerSubcontractors } from '../../
 import { quotationsApi } from '../../quotations/api';
 import { useImportQuotationItems, useQuotations } from '../../quotations/hooks';
 import { recalcClaimRow } from '../line-calc';
+import { claimsApi } from '../api';
 import { useBoqLines, useCreateClaim, useSaveProjectBoq } from '../hooks';
 import type { ClaimItemInput, ClaimType } from '../api';
 
@@ -45,6 +47,10 @@ export function CreateClaimPage() {
   const customers = useCustomers();
   const subcontractors = usePickerSubcontractors();
   const create = useCreateClaim();
+  const queryClient = useQueryClient();
+  const formRef = useRef<HTMLFormElement>(null);
+  // Which button was pressed: 'Save as Draft' just creates the claim; 'Save & Submit' also sends it for approval straight away.
+  const submitAfterSave = useRef(false);
   const importItems = useImportQuotationItems();
   const importInputRef = useRef<HTMLInputElement>(null);
   const quotations = useQuotations({ pageSize: 100 });
@@ -201,6 +207,14 @@ export function CreateClaimPage() {
         retentionPercent: retentionPercent || undefined,
         items: claimItems.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, periodQty: _periodQty, unit: _unit, ...item }) => item),
       });
+      if (submitAfterSave.current) {
+        try {
+          await claimsApi.submitForApproval(claim.id);
+          await queryClient.invalidateQueries({ queryKey: ['claims'] });
+        } catch {
+          // The claim itself saved fine - it's just still a draft. Its page has the Submit button and will show why submitting failed.
+        }
+      }
       navigate(`/claims/${claim.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong.');
@@ -213,7 +227,7 @@ export function CreateClaimPage() {
   return (
     <div>
       <PageHeader eyebrow="Commercials" title="New Progress Claim" />
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <form ref={formRef} onSubmit={onSubmit} className="flex flex-col gap-4">
         <Card>
           <CardContent className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
             <Field label="Project" htmlFor="c-project">
@@ -315,11 +329,33 @@ export function CreateClaimPage() {
         </Card>
 
         {error && <ErrorNote>{error}</ErrorNote>}
-        <div className="flex justify-end gap-2">
-          <Button type="button" onClick={() => navigate('/claims')}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={create.isPending || saveProjectBoq.isPending || !projectId}>
-            {create.isPending ? 'Creating…' : 'Create Claim'}
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          <p className="text-xs text-muted">
+            Save as Draft keeps the claim private to prepare — you can edit or delete it later, and submit it for approval from its page when it's ready.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={() => navigate('/claims')}>Cancel</Button>
+            <Button
+              type="button"
+              disabled={create.isPending || saveProjectBoq.isPending || !projectId}
+              onClick={() => {
+                submitAfterSave.current = true;
+                formRef.current?.requestSubmit();
+              }}
+            >
+              Save &amp; Submit for Approval
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={create.isPending || saveProjectBoq.isPending || !projectId}
+              onClick={() => {
+                submitAfterSave.current = false;
+              }}
+            >
+              {create.isPending ? 'Saving…' : 'Save as Draft'}
+            </Button>
+          </div>
         </div>
       </form>
     </div>
