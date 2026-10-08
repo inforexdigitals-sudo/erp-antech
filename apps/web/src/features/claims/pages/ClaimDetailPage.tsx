@@ -13,7 +13,7 @@ import { DataTable, Td, Th, TableWrap, Tr } from '../../../components/ui/Table';
 import { ApiError } from '../../../lib/api-client';
 import { formatCurrency, formatDate, toDateInputValue } from '../../../lib/utils';
 import { useAuthStore } from '../../../stores/auth-store';
-import { recalcClaimRow } from '../line-calc';
+import { initialPeriodQty, recalcClaimRow } from '../line-calc';
 import { useClaim, useClaimActions } from '../hooks';
 import type { Claim, ClaimItemInput } from '../api';
 
@@ -23,6 +23,7 @@ interface ClaimLineRow extends ClaimItemInput {
   previousPercent?: number;
   /** Quantity done this period - a typing convenience (see recalcClaimRow), stripped before submit. */
   periodQty?: number;
+  periodDriver?: 'qty' | 'percent';
 }
 
 function newClaimLine(): ClaimLineRow {
@@ -45,20 +46,24 @@ function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void 
   const [claimPeriodEnd, setClaimPeriodEnd] = useState(toDateInputValue(claim.claimPeriodEnd));
   const [retentionPercent, setRetentionPercent] = useState(Number(claim.retentionPercent));
   const [items, setItems] = useState<ClaimLineRow[]>(
-    claim.items.map((item) => ({
-      quotationItemId: item.quotationItemId ?? undefined,
-      projectBoqItemId: item.projectBoqItemId ?? undefined,
-      description: item.description,
-      contractQuantity: item.contractQuantity != null ? Number(item.contractQuantity) : undefined,
-      unitPrice: (item.quotationItem ?? item.projectBoqItem) ? Number((item.quotationItem ?? item.projectBoqItem)!.unitPrice) : undefined,
-      previousPercent: Number(item.previousPercent),
-      periodQty:
-        item.contractQuantity != null
-          ? Math.round(Number(item.contractQuantity) * Number(item.currentPercent) * 100) / 10000
-          : undefined,
-      currentPercent: Number(item.currentPercent),
-      amount: Number(item.amount),
-    })),
+    claim.items.map((item) => {
+      const contractQuantity = item.contractQuantity != null ? Number(item.contractQuantity) : undefined;
+      const linked = item.quotationItem ?? item.projectBoqItem;
+      const unitPrice = linked ? Number(linked.unitPrice) : undefined;
+      const currentPercent = Number(item.currentPercent);
+      const amount = Number(item.amount);
+      return {
+        quotationItemId: item.quotationItemId ?? undefined,
+        projectBoqItemId: item.projectBoqItemId ?? undefined,
+        description: item.description,
+        contractQuantity,
+        unitPrice,
+        previousPercent: Number(item.previousPercent),
+        ...initialPeriodQty({ contractQuantity, unitPrice, currentPercent, amount }),
+        currentPercent,
+        amount,
+      };
+    }),
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -74,7 +79,7 @@ function EditClaimModal({ claim, onClose }: { claim: Claim; onClose: () => void 
         claimPeriodStart,
         claimPeriodEnd,
         retentionPercent,
-        items: items.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, periodQty: _periodQty, ...item }) => item),
+        items: items.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, periodQty: _periodQty, periodDriver: _periodDriver, ...item }) => item),
       });
       onClose();
     } catch (err) {

@@ -23,6 +23,7 @@ interface ClaimLineRow extends ClaimItemInput {
   previousPercent?: number;
   /** Quantity done this period - a typing convenience (see recalcClaimRow), stripped before submit. */
   periodQty?: number;
+  periodDriver?: 'qty' | 'percent';
   /** Only used when saving the lines as the project's BOQ (see onSubmit) - never sent with the claim itself. */
   unit?: string;
 }
@@ -205,7 +206,7 @@ export function CreateClaimPage() {
         claimPeriodStart,
         claimPeriodEnd,
         retentionPercent: retentionPercent || undefined,
-        items: claimItems.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, periodQty: _periodQty, unit: _unit, ...item }) => item),
+        items: claimItems.map(({ unitPrice: _unitPrice, previousPercent: _previousPercent, periodQty: _periodQty, periodDriver: _periodDriver, unit: _unit, ...item }) => item),
       });
       if (submitAfterSave.current) {
         try {
